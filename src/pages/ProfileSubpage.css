@@ -1,0 +1,13 @@
+:root{--bg:#eef6fb;--card:#ffffff;--muted:#6b7280;--accent:#2b7cff}
+
+.profile-subpage{background:var(--bg);min-height:70vh;padding:28px}
+.layout-content{max-width:1100px;margin:0 auto}
+
+.sub-card{background:var(--card);padding:18px;border-radius:10px;border:1px solid rgba(15,23,42,0.04);box-shadow:0 6px 18px rgba(2,6,23,0.04)}
+.sub-card h2{margin:0 0 6px 0}
+.sub-card .muted{color:var(--muted);margin:0 0 12px 0}
+.empty-state{padding:18px;border-radius:8px;background:linear-gradient(180deg,#f8fbff,#ffffff);border:1px solid rgba(15,23,42,0.03);color:var(--muted)}
+.contact-form{display:flex;flex-direction:column;gap:10px}
+.contact-form label{display:flex;flex-direction:column}
+.contact-form input, .contact-form textarea{padding:10px;border-radius:8px;border:1px solid rgba(15,23,42,0.06)}
+.primary{background:var(--accent);color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer}
