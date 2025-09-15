@@ -1,0 +1,14 @@
+{
+  "files": {
+    "main.css": "/OOPs-Project/static/css/main.a511a12b.css",
+    "main.js": "/OOPs-Project/static/js/main.37d1ccc5.js",
+    "static/media/hero.png": "/OOPs-Project/static/media/hero.8bc0dddc74200f773bee.png",
+    "index.html": "/OOPs-Project/index.html",
+    "main.a511a12b.css.map": "/OOPs-Project/static/css/main.a511a12b.css.map",
+    "main.37d1ccc5.js.map": "/OOPs-Project/static/js/main.37d1ccc5.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.a511a12b.css",
+    "static/js/main.37d1ccc5.js"
+  ]
+}
