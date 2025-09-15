@@ -1,0 +1,233 @@
+/* Landing page styles inspired by the provided design */
+:root{
+  --bg:#eef6fb;
+  --card:#ffffff;
+  --muted:#6b7280;
+  --accent:#2b7cff;
+}
+
+.landing-page{
+  background-color: var(--bg);
+  color:#111827;
+}
+
+
+.hero{
+  /* prefer a local image placed at public/hero.jpg; external URL is a fallback */
+  background-image: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('../assets/hero.png');
+  background-size: cover;
+  background-position: center right;
+  padding: 80px 24px;
+  display:flex;
+  align-items:flex-end;
+}
+
+.hero-overlay{
+  width:100%;
+  max-width:1200px;
+  color: #fff;
+}
+
+.hero-content{
+  padding:36px 28px;
+  border-radius:8px;
+  text-align:left;
+}
+
+.hero-content h1{
+  font-size:56px;
+  margin:0 0 12px 0;
+  color:#fff;
+  font-weight:800;
+  line-height:1.02;
+}
+
+.hero-content p{
+  margin:0 0 28px 0;
+  color:rgba(255,255,255,0.85);
+  max-width:720px;
+  font-size:18px;
+}
+
+.cta{
+  background:var(--accent);
+  color:#fff;
+  border:none;
+  padding:12px 28px;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:700;
+  box-shadow:0 6px 14px rgba(43,124,255,0.18);
+}
+
+.hero .cta-wrap{margin-top:18px}
+
+@media (max-width:800px){
+  .hero{padding:40px 18px}
+  .hero-content h1{font-size:28px}
+  .hero-content p{font-size:15px}
+}
+
+.signin-section{
+  display:flex;
+  justify-content:center;
+  margin:24px;
+}
+
+.signin-card{
+  width:100%;
+  max-width:980px;
+  background:linear-gradient(180deg, #ffffff, #f8fbff);
+  border:1px solid rgba(16,24,40,0.06);
+  box-shadow: 0 2px 6px rgba(2,6,23,0.04);
+  padding:22px;
+  border-radius:8px;
+}
+
+.signin-card h2{
+  margin:8px 0 12px 0;
+}
+
+.tabs{
+  display:flex;
+  gap:12px;
+  border-bottom:1px solid rgba(15,23,42,0.06);
+  padding-bottom:12px;
+}
+
+.tab{
+  background:transparent;
+  border:none;
+  padding:10px 14px;
+  cursor:pointer;
+  color:var(--muted);
+  border-bottom:3px solid transparent;
+}
+
+.tab.active{
+  color:var(--accent);
+  border-bottom-color:var(--accent);
+  font-weight:600;
+}
+
+.tab-content{
+  padding:18px 10px 6px 0;
+}
+
+.helper{
+  color:var(--muted);
+  font-size:13px;
+  margin-bottom:16px;
+}
+
+.signin-btn{
+  background:var(--accent);
+  color:white;
+  border:none;
+  padding:12px 40px;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+.services-section, .about-section{
+  max-width:1100px;
+  margin:28px auto;
+  padding:18px 24px;
+}
+
+.services-container{
+  display:flex;
+  gap:18px;
+  margin-top:18px;
+}
+
+.service-item{
+  flex:1 1 0;
+  background:#fff;
+  padding:20px;
+  border-radius:8px;
+  border:1px solid rgba(15,23,42,0.04);
+  text-align:left;
+}
+
+/* Testimonials: make cards match service-item sizing and align headings */
+.about-section h2{ /* match services heading alignment */
+  margin:0 0 6px 0;
+}
+.testimonials{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:18px;
+  margin-top:18px;
+  align-items:stretch;
+}
+.testimonial-card{
+  background:#fff;
+  padding:20px;
+  border-radius:8px;
+  border:1px solid rgba(15,23,42,0.04);
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  height:100%;
+}
+.testimonial-avatar{
+  width:96px;
+  height:96px;
+  border-radius:50%;
+  background-size:cover;
+  background-position:center;
+  align-self:center;
+  box-shadow:0 4px 18px rgba(2,6,23,0.06);
+}
+.testimonial-name{color:#111827; font-weight:600; margin:0}
+.testimonial-text{color:var(--muted); margin:0; font-size:14px}
+
+.about-section p{
+  color:var(--muted);
+}
+
+/* About Us grid */
+.about-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:18px;
+  margin-top:18px;
+}
+.about-card{
+  background:#fff;
+  padding:18px;
+  border-radius:10px;
+  border:1px solid rgba(15,23,42,0.04);
+  text-align:left;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  align-items:flex-start;
+}
+.about-avatar{
+  width:84px;
+  height:84px;
+  border-radius:12px;
+  background-size:cover;
+  background-position:center;
+  box-shadow:0 6px 18px rgba(2,6,23,0.06);
+}
+.about-name{margin:0;font-size:16px;color:#111827;font-weight:700}
+.about-role{margin:0;color:var(--muted);font-size:13px}
+.about-text{margin:0;color:var(--muted);font-size:14px}
+
+@media (max-width:800px){
+  .services-container{flex-direction:column}
+  .hero-content h1{font-size:26px}
+}
+
+@media (max-width:900px){
+  .testimonials{grid-template-columns:repeat(2,1fr)}
+  .about-grid{grid-template-columns:repeat(2,1fr)}
+}
+
+@media (max-width:560px){
+  .testimonials{grid-template-columns:1fr}
+  .about-grid{grid-template-columns:1fr}
+}

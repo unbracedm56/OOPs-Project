@@ -1,0 +1,7 @@
+.login-sec-page{min-height:80vh;padding:28px;background:#f7f8fb}
+.container{max-width:840px;margin:0 auto}
+.card{background:#fff;padding:18px;border-radius:8px;box-shadow:0 12px 30px rgba(20,20,50,0.04)}
+.row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f3f5f7}
+.label{color:#6b7280;font-size:13px}
+.value{font-weight:600}
+.btn{padding:8px 12px;border-radius:8px;background:#eef2ff;border:none;color:#0b69ff}

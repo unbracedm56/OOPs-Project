@@ -1,0 +1,28 @@
+.pm-page{padding:40px 16px;min-height:60vh;background:var(--bg, #f7f7fb)}
+.container{max-width:980px;margin:0 auto}
+.crumbs{color:#666;margin-bottom:12px}
+.card.large{background:#fff;padding:28px;border-radius:12px;box-shadow:0 6px 20px rgba(20,20,50,0.06)}
+.card.large h1{margin:0 0 18px;font-size:22px}
+.options{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.option{display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid #ececec;border-radius:10px;background:linear-gradient(180deg,#fff,#fcfcff)}
+.option.selected{border-color:#5b6cff;box-shadow:0 4px 18px rgba(91,108,255,0.12)}
+.label-left{display:flex;align-items:center;gap:12px}
+.icon{width:44px;height:36px;border-radius:8px;background:#eef2ff}
+.card-ico{background:linear-gradient(135deg,#7b8cff,#5563ff)}
+.bank-ico{background:linear-gradient(135deg,#ffb86b,#ff7a7a)}
+.qr-ico{background:linear-gradient(135deg,#6ef3c5,#2fd6a3)}
+wallet-ico{background:linear-gradient(135deg,#ffd36e,#ff8fe3)}
+/* COD icon */
+.cod-ico{background:linear-gradient(135deg,#f3f4f6,#d1d5db)}
+.sub{font-size:13px;color:var(--muted,#6b7280)}
+.method-panel{margin-top:14px;background:var(--card,#fff);padding:14px;border-radius:10px;border:1px solid rgba(15,23,42,0.04);box-shadow:0 6px 18px rgba(2,6,23,0.04)}
+.method-panel label{display:block;margin-bottom:8px}
+.method-panel input,.method-panel select{width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(15,23,42,0.06);background:transparent;outline:none}
+.method-panel .row{display:flex;gap:10px}
+.method-panel .row label{flex:1}
+.title{font-weight:600}
+.btn.continue{display:inline-block;margin-top:18px;padding:12px 18px;background:var(--accent,#5b6cff);color:#fff;border-radius:10px;border:none}
+
+@media (max-width:720px){
+ .options{grid-template-columns:1fr}
+}
