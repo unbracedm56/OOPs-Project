@@ -1,0 +1,12 @@
+.otp-page{min-height:100vh;background:#f5f7fb;display:flex;flex-direction:column}
+.otp-header{height:64px;display:flex;align-items:center;padding:0 24px;font-weight:700;color:#0f172a}
+.otp-main{flex:1;display:flex;align-items:center;justify-content:center;padding:48px 16px}
+.otp-card{width:520px;background:#fff;padding:32px;border-radius:10px;box-shadow:0 20px 40px rgba(20,20,50,0.06);text-align:center}
+.otp-card h2{margin:0 0 8px;font-size:26px}
+.otp-card .muted{color:#6b7280;margin-bottom:18px}
+.otp-inputs{display:flex;justify-content:center;gap:12px;margin:18px 0}
+.otp-inputs input{width:56px;height:56px;border:1px solid #e6e9ef;border-radius:8px;text-align:center;font-size:20px}
+.otp-footer{display:flex;justify-content:space-between;align-items:center;padding-top:8px}
+.resend{background:none;border:none;color:#1870f2;cursor:pointer}
+.btn.submit{display:block;margin:18px auto 0;padding:12px 20px;background:#0b69ff;color:#fff;border-radius:8px;border:none}
+@media (max-width:520px){.otp-card{width:92%}.otp-inputs input{width:44px;height:44px}}

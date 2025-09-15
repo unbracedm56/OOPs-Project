@@ -1,0 +1,18 @@
+.bank-page{min-height:100vh;background:#f5f7fb;display:flex;flex-direction:column}
+.bank-header{display:flex;justify-content:space-between;padding:18px 28px;border-bottom:1px solid #eef2f6;background:#fff}
+.brand{font-weight:700;color:#1f4ed8}
+.tx{color:#6b7280;font-size:13px}
+.bank-main{flex:1;display:flex;align-items:center;justify-content:center;padding:48px 16px}
+.bank-card{width:420px;background:#fff;padding:28px;border-radius:8px;box-shadow:0 12px 36px rgba(20,20,50,0.06)}
+.bank-card h2{margin:0 0 6px;font-size:22px}
+.sub{color:#444;margin-bottom:12px}
+.bank-card input{width:100%;padding:12px;border:1px solid #e6e9ef;border-radius:6px;margin:8px 0}
+.links-row{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.link-btn{background:none;border:none;color:#1870f2;cursor:pointer;padding:6px;font-size:13px}
+.btn.pay{display:block;width:100%;padding:12px;background:#1570ff;color:#fff;border-radius:8px;border:none;margin-top:14px}
+.summary{margin-top:14px}
+.summary h4{margin:0 0 8px}
+.row{display:flex;justify-content:space-between;padding:6px 0}
+.muted{color:#6b7280}
+.bank-foot{text-align:center;padding:20px 0;color:#9aa3b2;font-size:13px}
+@media (max-width:480px){.bank-card{width:92%}}

@@ -1,0 +1,23 @@
+:root{--bg:#eef6fb;--card:#ffffff;--muted:#6b7280;--accent:#2b7cff}
+
+.signup-page{background:var(--bg);min-height:70vh;padding:36px 20px}
+.layout-content{max-width:820px;margin:0 auto}
+
+.signup-card{background:var(--card);padding:22px;border-radius:10px;border:1px solid rgba(15,23,42,0.04);box-shadow:0 6px 18px rgba(2,6,23,0.04)}
+.signup-card h2{margin:0 0 6px 0}
+.signup-card .muted{color:var(--muted);margin:0 0 14px 0}
+
+.signup-form{display:flex;flex-direction:column;gap:12px}
+.signup-form label{display:flex;flex-direction:column;font-size:14px;color:#111827}
+.signup-form input,.signup-form textarea{padding:10px 12px;border-radius:8px;border:1px solid rgba(15,23,42,0.06);background:transparent}
+.signup-form textarea{min-height:90px}
+
+.avatar-select{margin-top:6px}
+.avatar-select .label{font-size:14px;color:#111827;margin-bottom:8px}
+.avatars{display:flex;gap:8px}
+.avatar-option{width:56px;height:56px;border-radius:10px;background-size:cover;background-position:center;border:2px solid transparent;cursor:pointer}
+.avatar-option.active{outline:2px solid var(--accent);transform:scale(1.04)}
+
+.actions{display:flex;gap:12px;align-items:center;margin-top:8px}
+.primary{background:var(--accent);color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer}
+.link{background:transparent;border:none;color:var(--accent);cursor:pointer}
