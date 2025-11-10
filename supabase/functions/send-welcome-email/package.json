@@ -1,0 +1,9 @@
+{
+  "name": "send-welcome-email",
+  "version": "1.0.0",
+  "description": "Sends welcome emails to new users",
+  "main": "index.ts",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  }
+}

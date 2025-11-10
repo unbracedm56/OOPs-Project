@@ -1,0 +1,12 @@
+{
+  "name": "send-order-emails",
+  "version": "1.0.0",
+  "description": "Supabase Edge Function to send order confirmation and delivery notification emails",
+  "main": "index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["supabase", "edge-function", "email", "orders"],
+  "author": "",
+  "license": "ISC"
+}
