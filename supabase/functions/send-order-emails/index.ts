@@ -335,7 +335,6 @@ serve(async (req) => {
 
         // TODO: Replace this with your actual email service
         // Example with Resend:
-        /*
         const resendApiKey = Deno.env.get('RESEND_API_KEY')!
         const emailResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
@@ -355,7 +354,6 @@ serve(async (req) => {
           const errorData = await emailResponse.text()
           throw new Error(`Email service error: ${errorData}`)
         }
-        */
 
         // For now, just simulate sending
         console.log(`✓ Email simulated for ${emailItem.recipient_email}`)

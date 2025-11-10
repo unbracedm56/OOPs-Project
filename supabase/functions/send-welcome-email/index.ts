@@ -141,7 +141,6 @@ serve(async (req) => {
         // 4. Postmark
         
         // Example with Resend (you'll need to add RESEND_API_KEY to secrets):
-        /*
         const resendResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -159,7 +158,6 @@ serve(async (req) => {
         if (!resendResponse.ok) {
           throw new Error(`Failed to send email: ${await resendResponse.text()}`);
         }
-        */
         
         // For now, just mark as sent (simulated)
         console.log(`Would send email to ${emailJob.email}: ${template.subject}`);
