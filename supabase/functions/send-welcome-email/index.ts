@@ -140,15 +140,24 @@ serve(async (req) => {
         // 3. AWS SES
         // 4. Postmark
         
-        // Example with Resend (you'll need to add RESEND_API_KEY to secrets):
+        // Send email using Resend
+        const resendApiKey = Deno.env.get('RESEND_API_KEY');
+        
+        if (!resendApiKey) {
+          console.error('❌ RESEND_API_KEY not configured!');
+          throw new Error('RESEND_API_KEY not set. Configure it with: npx supabase secrets set RESEND_API_KEY=your_key');
+        }
+
+        console.log(`Sending email to ${emailJob.email}...`);
+        
         const resendResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${Deno.env.get('RESEND_API_KEY')}`,
+            'Authorization': `Bearer ${resendApiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Marketplace <noreply@yourdomain.com>',
+            from: 'OOPs Project <noreply@yourdomain.com>', // Replace yourdomain.com with your verified domain
             to: emailJob.email,
             subject: template.subject,
             html: template.html,
@@ -156,11 +165,13 @@ serve(async (req) => {
         });
         
         if (!resendResponse.ok) {
-          throw new Error(`Failed to send email: ${await resendResponse.text()}`);
+          const errorText = await resendResponse.text();
+          console.error(`Resend API error:`, errorText);
+          throw new Error(`Failed to send email: ${errorText}`);
         }
         
-        // For now, just mark as sent (simulated)
-        console.log(`Would send email to ${emailJob.email}: ${template.subject}`);
+        const emailData = await resendResponse.json();
+        console.log(`✅ Email sent successfully to ${emailJob.email}, Resend ID: ${emailData.id}`);
         
         // Update the queue to mark as sent
         const { error: updateError } = await supabaseClient
@@ -175,7 +186,8 @@ serve(async (req) => {
         results.push({ 
           success: true, 
           email: emailJob.email,
-          message: 'Email sent successfully (simulated)' 
+          message: 'Email sent successfully',
+          emailId: emailData.id
         });
 
       } catch (emailError) {

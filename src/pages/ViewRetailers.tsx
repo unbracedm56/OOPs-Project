@@ -6,17 +6,28 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ArrowLeft, Calendar as CalendarIcon } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, MapPin } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { DeliveryMap } from "@/components/DeliveryMap";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const ViewRetailers = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mapDialogOpen, setMapDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [store, setStore] = useState<any>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -66,13 +77,26 @@ const ViewRetailers = () => {
         return;
       }
 
-      const { data: store } = await supabase
+      const { data: storeData } = await supabase
         .from("stores")
-        .select("id, type")
+        .select("id, type, warehouse_address_id")
         .eq("owner_id", user.id)
         .single();
 
-      if (!store) return;
+      if (!storeData) return;
+      
+      // Fetch warehouse address separately
+      let warehouseAddress = null;
+      if (storeData.warehouse_address_id) {
+        const { data: addressData } = await supabase
+          .from("addresses")
+          .select("lat, lng")
+          .eq("id", storeData.warehouse_address_id)
+          .single();
+        warehouseAddress = addressData;
+      }
+
+      setStore({ ...storeData, warehouse_address: warehouseAddress });
 
       const { data: ordersData, error } = await supabase
         .from("orders")
@@ -91,7 +115,9 @@ const ViewRetailers = () => {
             line2,
             city,
             state,
-            pincode
+            pincode,
+            lat,
+            lng
           ),
           order_items (
             *,
@@ -105,7 +131,7 @@ const ViewRetailers = () => {
             )
           )
         `)
-        .eq("store_id", store.id)
+        .eq("store_id", storeData.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -239,9 +265,23 @@ const ViewRetailers = () => {
                         Phone: {order.stores?.phone || order.profiles?.phone || 'N/A'}
                       </p>
                     </div>
-                    <Badge variant={getStatusColor(order.status)}>
-                      {order.status}
-                    </Badge>
+                    <div className="flex flex-col gap-2 items-end">
+                      <Badge variant={getStatusColor(order.status)}>
+                        {order.status}
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setMapDialogOpen(true);
+                        }}
+                        className="gap-2"
+                      >
+                        <MapPin className="h-4 w-4" />
+                        View Route
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -345,6 +385,59 @@ const ViewRetailers = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={mapDialogOpen} onOpenChange={setMapDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Delivery Route</DialogTitle>
+            <DialogDescription>
+              Route from your warehouse to the delivery address
+            </DialogDescription>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="mt-4">
+              {store?.warehouse_address?.lat && store?.warehouse_address?.lng ? (
+                selectedOrder.addresses?.lat && selectedOrder.addresses?.lng ? (
+                  <DeliveryMap
+                    warehouseLocation={{
+                      lat: store.warehouse_address.lat,
+                      lng: store.warehouse_address.lng,
+                    }}
+                    deliveryLocation={{
+                      lat: selectedOrder.addresses.lat,
+                      lng: selectedOrder.addresses.lng,
+                    }}
+                  />
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">
+                    Delivery location coordinates not available for this order.
+                  </p>
+                )
+              ) : (
+                <div className="text-center py-8 space-y-4">
+                  <p className="text-muted-foreground">
+                    Your warehouse location is not set.
+                  </p>
+                  <Button 
+                    onClick={() => {
+                      setMapDialogOpen(false);
+                      navigate("/wholesaler-dashboard");
+                    }}
+                    variant="default"
+                  >
+                    <MapPin className="mr-2 h-4 w-4" />
+                    Set Warehouse Location
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Go to your dashboard to set up your warehouse location.
+                    The page will automatically prompt you to set it up.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

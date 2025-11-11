@@ -333,9 +333,14 @@ serve(async (req) => {
 
         console.log(`Sending ${emailItem.email_type} email to ${emailItem.recipient_email}...`)
 
-        // TODO: Replace this with your actual email service
-        // Example with Resend:
-        const resendApiKey = Deno.env.get('RESEND_API_KEY')!
+        // Send email using Resend
+        const resendApiKey = Deno.env.get('RESEND_API_KEY');
+        
+        if (!resendApiKey) {
+          console.error('❌ RESEND_API_KEY not configured!');
+          throw new Error('RESEND_API_KEY not set. Configure it with: npx supabase secrets set RESEND_API_KEY=your_key');
+        }
+
         const emailResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -343,7 +348,7 @@ serve(async (req) => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            from: 'orders@yourstore.com',
+            from: 'OOPs Project Orders <orders@yourdomain.com>', // Replace yourdomain.com with your verified domain
             to: emailItem.recipient_email,
             subject: subject,
             html: emailHTML
@@ -352,11 +357,12 @@ serve(async (req) => {
 
         if (!emailResponse.ok) {
           const errorData = await emailResponse.text()
+          console.error(`Resend API error:`, errorData);
           throw new Error(`Email service error: ${errorData}`)
         }
 
-        // For now, just simulate sending
-        console.log(`✓ Email simulated for ${emailItem.recipient_email}`)
+        const emailData = await emailResponse.json();
+        console.log(`✅ Email sent to ${emailItem.recipient_email}, Resend ID: ${emailData.id}`);
 
         // Mark as sent
         const { error: updateError } = await supabase

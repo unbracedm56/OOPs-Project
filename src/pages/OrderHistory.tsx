@@ -3,14 +3,24 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { DeliveryMap } from "@/components/DeliveryMap";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const OrderHistory = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [mapDialogOpen, setMapDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -60,14 +70,17 @@ const OrderHistory = () => {
           stores:store_id (
             name,
             phone,
-            type
+            type,
+            warehouse_address_id
           ),
-          addresses:delivery_address_id (
+          delivery_address:delivery_address_id (
             line1,
             line2,
             city,
             state,
-            pincode
+            pincode,
+            lat,
+            lng
           ),
           order_items (
             *,
@@ -86,7 +99,29 @@ const OrderHistory = () => {
 
       if (error) throw error;
 
-      setOrders(ordersData || []);
+      // Fetch warehouse addresses for all orders
+      const ordersWithWarehouse = await Promise.all(
+        (ordersData || []).map(async (order) => {
+          if (order.stores?.warehouse_address_id) {
+            const { data: warehouseAddress } = await supabase
+              .from("addresses")
+              .select("lat, lng")
+              .eq("id", order.stores.warehouse_address_id)
+              .single();
+            
+            return {
+              ...order,
+              stores: {
+                ...order.stores,
+                warehouse_address: warehouseAddress
+              }
+            };
+          }
+          return order;
+        })
+      );
+
+      setOrders(ordersWithWarehouse || []);
     } catch (error) {
       console.error("Error fetching orders:", error);
     } finally {
@@ -178,7 +213,7 @@ const OrderHistory = () => {
                   <CardContent className="p-6">
                     {/* Header Section */}
                     <div className="flex items-start justify-between mb-4">
-                      <div>
+                      <div className="flex-1">
                         <p className="font-semibold text-lg">Order #{order.order_number}</p>
                         <p className="text-sm text-muted-foreground">
                           Ordered: {new Date(order.placed_at).toLocaleDateString()}
@@ -187,9 +222,24 @@ const OrderHistory = () => {
                           Store: {order.stores?.name || 'N/A'} ({order.stores?.type || 'N/A'})
                         </p>
                       </div>
-                      <Badge variant={getStatusColor(order.status)} className="text-sm">
-                        {order.status}
-                      </Badge>
+                      <div className="flex flex-col gap-2 items-end">
+                        <Badge variant={getStatusColor(order.status) as any}>
+                          {order.status.toUpperCase()}
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedOrder(order);
+                            setMapDialogOpen(true);
+                          }}
+                          className="gap-1"
+                        >
+                          <MapPin className="h-4 w-4" />
+                          Track
+                        </Button>
+                      </div>
                     </div>
 
                     {/* Progress Bar */}
@@ -361,6 +411,57 @@ const OrderHistory = () => {
             })}
           </div>
         )}
+
+        {/* Map Dialog */}
+        <Dialog open={mapDialogOpen} onOpenChange={setMapDialogOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Order Delivery Route</DialogTitle>
+              <DialogDescription>
+                Track the delivery route from warehouse to your location
+              </DialogDescription>
+            </DialogHeader>
+            {selectedOrder && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="font-semibold">Order #{selectedOrder.order_number}</p>
+                    <p className="text-muted-foreground">Status: {selectedOrder.status}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold">{selectedOrder.stores?.name}</p>
+                    <p className="text-muted-foreground">{selectedOrder.stores?.phone}</p>
+                  </div>
+                </div>
+                {selectedOrder.stores?.warehouse_address?.lat && selectedOrder.stores?.warehouse_address?.lng ? (
+                  selectedOrder.delivery_address?.lat && selectedOrder.delivery_address?.lng ? (
+                    <DeliveryMap
+                      warehouseLocation={{
+                        lat: selectedOrder.stores.warehouse_address.lat,
+                        lng: selectedOrder.stores.warehouse_address.lng,
+                      }}
+                      deliveryLocation={{
+                        lat: selectedOrder.delivery_address.lat,
+                        lng: selectedOrder.delivery_address.lng,
+                      }}
+                    />
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">
+                      Delivery address coordinates not available for this order.
+                    </p>
+                  )
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      The store has not set up their warehouse location yet.
+                      Please contact {selectedOrder.stores?.name || "the store"} to set it up.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
