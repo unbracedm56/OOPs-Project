@@ -17,6 +17,7 @@ export default function RetailerPurchasedProducts() {
   const [store, setStore] = useState<any>(null);
   const [deliveredOrders, setDeliveredOrders] = useState<any[]>([]);
   const [ownedProducts, setOwnedProducts] = useState<any[]>([]);
+  const [purchasedTracking, setPurchasedTracking] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -143,6 +144,15 @@ export default function RetailerPurchasedProducts() {
 
   const isProductInInventory = (productId: string) => {
     return ownedProducts.some(item => item.product_id === productId);
+  };
+
+  const getAvailableQty = (productId: string, orderId: string, purchasedQty: number) => {
+    // Calculate how much has already been added to inventory from this order
+    const alreadyAdded = ownedProducts
+      .filter(item => item.product_id === productId && item.source_order_id === orderId)
+      .reduce((sum, item) => sum + item.stock_qty, 0);
+    
+    return Math.max(0, purchasedQty - alreadyAdded);
   };
 
   if (loading) {
@@ -282,7 +292,12 @@ export default function RetailerPurchasedProducts() {
                     <CardContent>
                       <div className="space-y-4">
                         {order.order_items?.map((item: any) => {
-                          const inInventory = isProductInInventory(item.inventory?.products?.id);
+                          const availableQty = getAvailableQty(
+                            item.inventory?.products?.id,
+                            order.id,
+                            item.qty
+                          );
+                          const fullyAdded = availableQty === 0;
                           
                           return (
                             <div key={item.id} className="flex items-center gap-4 p-4 border rounded">
@@ -296,16 +311,21 @@ export default function RetailerPurchasedProducts() {
                               <div className="flex-1">
                                 <h4 className="font-semibold">{item.inventory?.products?.name}</h4>
                                 <p className="text-sm text-muted-foreground">
-                                  Quantity: {item.qty} | Price: ₹{item.unit_price}
+                                  Purchased: {item.qty} units | Price: ₹{item.unit_price}
                                 </p>
+                                {availableQty < item.qty && (
+                                  <p className="text-sm text-orange-600">
+                                    Available to add: {availableQty} units
+                                  </p>
+                                )}
                               </div>
-                              {inInventory ? (
-                                <Badge variant="secondary">Already in Inventory</Badge>
+                              {fullyAdded ? (
+                                <Badge variant="secondary">Fully Added to Inventory</Badge>
                               ) : (
                                 <Dialog open={isAddDialogOpen && selectedProduct?.id === item.id} onOpenChange={setIsAddDialogOpen}>
                                   <DialogTrigger asChild>
                                     <Button
-                                      onClick={() => setSelectedProduct({ ...item, order_id: order.id })}
+                                      onClick={() => setSelectedProduct({ ...item, order_id: order.id, available_qty: availableQty })}
                                     >
                                       <Plus className="h-4 w-4 mr-2" />
                                       Add to Inventory
@@ -319,7 +339,7 @@ export default function RetailerPurchasedProducts() {
                                       <div className="p-4 bg-muted rounded">
                                         <p className="font-semibold">{item.inventory?.products?.name}</p>
                                         <p className="text-sm text-muted-foreground">
-                                          You purchased {item.qty} units at ₹{item.unit_price} each
+                                          Purchased: {item.qty} units | Available: {availableQty} units at ₹{item.unit_price} each
                                         </p>
                                       </div>
                                       <div>
@@ -355,13 +375,13 @@ export default function RetailerPurchasedProducts() {
                                           id="stock_qty" 
                                           name="stock_qty" 
                                           type="number" 
-                                          min="0"
-                                          max={item.qty}
-                                          defaultValue={item.qty}
+                                          min="1"
+                                          max={availableQty}
+                                          defaultValue={availableQty}
                                           required 
                                         />
                                         <p className="text-xs text-muted-foreground mt-1">
-                                          Maximum: {item.qty} units (what you purchased)
+                                          Maximum: {availableQty} units (available from this purchase)
                                         </p>
                                       </div>
                                       <div>

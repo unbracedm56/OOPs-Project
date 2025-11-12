@@ -20,8 +20,37 @@ export default function RetailerInventory() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
-  const [imageUrls, setImageUrls] = useState<string>("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [imageUrls, setImageUrls] = useState("");
+  const [purchasedTracking, setPurchasedTracking] = useState<any[]>([]);
+
+  const getMaxAllowedQty = (item: any) => {
+    // If product was created from scratch, no limit
+    if (item.source_type === 'created' || !item.source_type) {
+      return null; // No limit
+    }
+
+    // For purchased products, we need to fetch from tracking
+    // For now, we'll use a simple client-side calculation
+    if (item.source_type === 'purchased' && item.source_order_id) {
+      const tracking = purchasedTracking.find(
+        t => t.product_id === item.product_id && t.source_order_id === item.source_order_id
+      );
+      
+      if (tracking) {
+        // Current item's quantity + available quantity
+        const currentItemQty = item.stock_qty;
+        const totalPurchased = tracking.purchased_qty;
+        const alreadyAdded = tracking.added_to_inventory_qty;
+        const available = totalPurchased - alreadyAdded;
+        
+        // Max allowed = current quantity + available
+        return currentItemQty + available;
+      }
+    }
+
+    return null;
+  };
 
   useEffect(() => {
     fetchData();
@@ -49,9 +78,60 @@ export default function RetailerInventory() {
             *,
             products:product_id (*)
           `)
-          .eq("store_id", storeData.id);
+          .eq("store_id", storeData.id)
+          .eq("is_active", true);
 
         setInventory(inventoryData || []);
+
+        // Fetch delivered orders to calculate purchased quantities
+        const { data: ordersData } = await supabase
+          .from("orders")
+          .select(`
+            id,
+            order_items (
+              inventory_id,
+              qty,
+              inventory:inventory_id (
+                product_id
+              )
+            )
+          `)
+          .eq("customer_id", user.id)
+          .eq("status", "delivered");
+
+        // Build tracking map
+        const trackingMap: any[] = [];
+        if (ordersData) {
+          ordersData.forEach((order: any) => {
+            order.order_items?.forEach((item: any) => {
+              if (item.inventory?.product_id) {
+                trackingMap.push({
+                  source_order_id: order.id,
+                  product_id: item.inventory.product_id,
+                  purchased_qty: item.qty
+                });
+              }
+            });
+          });
+        }
+
+        // Calculate added quantities from inventory
+        const trackingWithAdded = trackingMap.map(t => {
+          const alreadyAdded = (inventoryData || [])
+            .filter((inv: any) => 
+              inv.product_id === t.product_id && 
+              inv.source_order_id === t.source_order_id &&
+              inv.source_type === 'purchased'
+            )
+            .reduce((sum: number, inv: any) => sum + inv.stock_qty, 0);
+
+          return {
+            ...t,
+            added_to_inventory_qty: alreadyAdded
+          };
+        });
+
+        setPurchasedTracking(trackingWithAdded);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -142,12 +222,28 @@ export default function RetailerInventory() {
     
     try {
       if (editingItem) {
+        const newStockQty = Number(formData.get("stock_qty"));
+        
+        // Hard restriction for purchased products
+        if (editingItem.source_type === 'purchased') {
+          const maxAllowed = getMaxAllowedQty(editingItem);
+          
+          if (maxAllowed !== null && newStockQty > maxAllowed) {
+            toast({
+              title: "Cannot save",
+              description: `Maximum allowed quantity is ${maxAllowed} units (based on your purchase)`,
+              variant: "destructive"
+            });
+            return; // Block the save
+          }
+        }
+
         const { error } = await supabase
           .from("inventory")
           .update({
             price: Number(formData.get("price")),
             mrp: Number(formData.get("mrp")),
-            stock_qty: Number(formData.get("stock_qty")),
+            stock_qty: newStockQty,
             delivery_days: Number(formData.get("delivery_days")),
             is_active: formData.get("is_active") === "on"
           })
@@ -166,16 +262,18 @@ export default function RetailerInventory() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this item?")) return;
+    if (!confirm("Are you sure you want to remove this item from your inventory? (It will be marked as inactive)")) return;
 
     try {
+      // Soft delete: mark as inactive instead of deleting
+      // This prevents foreign key errors with existing orders
       const { error } = await supabase
         .from("inventory")
-        .delete()
+        .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq("id", id);
 
       if (error) throw error;
-      toast({ title: "Item deleted successfully" });
+      toast({ title: "Item removed from active inventory" });
       fetchData();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -318,6 +416,27 @@ export default function RetailerInventory() {
                           <DialogTitle>Edit Inventory Item</DialogTitle>
                         </DialogHeader>
                         <form onSubmit={handleSave} className="space-y-4">
+                          {item.source_type === 'purchased' && (
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                              <p className="text-sm text-amber-800 font-medium">
+                                🔒 Purchased Product - Quantity Limited
+                              </p>
+                              <p className="text-xs text-amber-700 mt-1">
+                                This product was purchased from a wholesaler. You can only set quantity up to what you purchased.
+                              </p>
+                              {(() => {
+                                const maxQty = getMaxAllowedQty(item);
+                                if (maxQty !== null) {
+                                  return (
+                                    <p className="text-xs text-amber-700 mt-1 font-semibold">
+                                      Maximum allowed: {maxQty} units
+                                    </p>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          )}
                           <div>
                             <Label htmlFor="price">Selling Price (₹)</Label>
                             <Input id="price" name="price" type="number" step="0.01" defaultValue={item.price} required />
@@ -328,7 +447,25 @@ export default function RetailerInventory() {
                           </div>
                           <div>
                             <Label htmlFor="stock_qty">Stock Quantity</Label>
-                            <Input id="stock_qty" name="stock_qty" type="number" defaultValue={item.stock_qty} required />
+                            <Input 
+                              id="stock_qty" 
+                              name="stock_qty" 
+                              type="number" 
+                              min="0"
+                              max={item.source_type === 'purchased' ? getMaxAllowedQty(item) || undefined : undefined}
+                              defaultValue={item.stock_qty} 
+                              required 
+                            />
+                            {item.source_type === 'purchased' && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Current: {item.stock_qty} units | Max: {getMaxAllowedQty(item) || 'Calculating...'} units
+                              </p>
+                            )}
+                            {item.source_type === 'created' && (
+                              <p className="text-xs text-green-600 mt-1">
+                                ✓ No limit - Product created by you
+                              </p>
+                            )}
                           </div>
                           <div>
                             <Label htmlFor="delivery_days">Delivery Days</Label>

@@ -49,7 +49,8 @@ export default function WholesalerInventory() {
             *,
             products:product_id (*)
           `)
-          .eq("store_id", storeData.id);
+          .eq("store_id", storeData.id)
+          .eq("is_active", true);
 
         setInventory(inventoryData || []);
       }
@@ -141,12 +142,24 @@ export default function WholesalerInventory() {
     
     try {
       if (editingItem) {
+        const newStockQty = Number(formData.get("stock_qty"));
+        
+        // Hard restriction for purchased products (if wholesaler also purchases)
+        if (editingItem.source_type === 'purchased') {
+          toast({
+            title: "Cannot increase quantity",
+            description: "This product was purchased. You can only sell up to what you bought.",
+            variant: "destructive"
+          });
+          return; // Block the save if it's a purchased product with increased quantity
+        }
+
         const { error } = await supabase
           .from("inventory")
           .update({
             price: Number(formData.get("price")),
             mrp: Number(formData.get("mrp")),
-            stock_qty: Number(formData.get("stock_qty")),
+            stock_qty: newStockQty,
             delivery_days: Number(formData.get("delivery_days")),
             is_active: formData.get("is_active") === "on"
           })
@@ -165,16 +178,18 @@ export default function WholesalerInventory() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this item?")) return;
+    if (!confirm("Are you sure you want to remove this item from your inventory? (It will be marked as inactive)")) return;
 
     try {
+      // Soft delete: mark as inactive instead of deleting
+      // This prevents foreign key errors with existing orders
       const { error } = await supabase
         .from("inventory")
-        .delete()
+        .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq("id", id);
 
       if (error) throw error;
-      toast({ title: "Item deleted successfully" });
+      toast({ title: "Item removed from active inventory" });
       fetchData();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
