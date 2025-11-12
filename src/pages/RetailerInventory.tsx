@@ -120,6 +120,7 @@ export default function RetailerInventory() {
           retail_price: Number(formData.get("mrp")),
           stock_qty: Number(formData.get("stock_qty")),
           delivery_days: Number(formData.get("delivery_days")),
+          source_type: 'created',
           is_active: formData.get("is_active") === "on"
         });
 

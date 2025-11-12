@@ -282,7 +282,9 @@ export default function RetailerDashboard() {
                 <TrendingUp className="h-8 w-8 text-primary" />
                 <div>
                   <p className="text-sm text-muted-foreground">Revenue</p>
-                  <p className="text-2xl font-bold">₹0</p>
+                  <p className="text-2xl font-bold">
+                    ₹{store?.total_revenue ? Number(store.total_revenue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -290,10 +292,14 @@ export default function RetailerDashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Button size="lg" onClick={() => navigate("/retailer/inventory")} className="h-20">
             <Package className="mr-2 h-5 w-5" />
             Manage Inventory
+          </Button>
+          <Button size="lg" variant="outline" onClick={() => navigate("/retailer/products")} className="h-20">
+            <Package className="mr-2 h-5 w-5" />
+            My Products
           </Button>
           <Button size="lg" variant="outline" onClick={() => navigate("/view-customers")} className="h-20">
             <Users className="mr-2 h-5 w-5" />

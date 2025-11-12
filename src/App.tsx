@@ -13,6 +13,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import RetailerDashboard from "./pages/RetailerDashboard";
 import WholesalerDashboard from "./pages/WholesalerDashboard";
 import RetailerInventory from "./pages/RetailerInventory";
+import RetailerPurchasedProducts from "./pages/RetailerPurchasedProducts";
 import WholesalerInventory from "./pages/WholesalerInventory";
 import ProductDetail from "./pages/ProductDetail";
 import Profile from "./pages/Profile";
@@ -60,6 +61,7 @@ const App = () => (
           <Route path="/retailer-dashboard" element={<RetailerDashboard />} />
           <Route path="/wholesaler-dashboard" element={<WholesalerDashboard />} />
           <Route path="/retailer/inventory" element={<RetailerInventory />} />
+          <Route path="/retailer/products" element={<RetailerPurchasedProducts />} />
           <Route path="/wholesaler/inventory" element={<WholesalerInventory />} />
           <Route path="/product/:slug" element={<ProductDetail />} />
           <Route path="/profile" element={<Profile />} />

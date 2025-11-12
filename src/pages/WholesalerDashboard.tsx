@@ -167,7 +167,9 @@ export default function WholesalerDashboard() {
                 <TrendingUp className="h-8 w-8 text-primary" />
                 <div>
                   <p className="text-sm text-muted-foreground">Revenue</p>
-                  <p className="text-2xl font-bold">₹0</p>
+                  <p className="text-2xl font-bold">
+                    ₹{store?.total_revenue ? Number(store.total_revenue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                  </p>
                 </div>
               </div>
             </CardContent>

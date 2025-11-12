@@ -213,7 +213,7 @@ const CheckoutPage = () => {
             delivery_address_id: selectedAddress,
             order_number: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             status: "pending",
-            payment_status: paymentMethod === "cod" ? "pending" : "paid",
+            payment_status: paymentMethod === "cod" ? "cod" : "paid",
           })
           .select()
           .single();
@@ -240,22 +240,7 @@ const CheckoutPage = () => {
 
         if (itemsError) throw itemsError;
 
-        // Update inventory quantities
-        for (const item of storeItems) {
-          const { data: currentInventory } = await supabase
-            .from("inventory")
-            .select("stock_qty")
-            .eq("id", item.inventory_id)
-            .single();
-
-          if (currentInventory) {
-            const newStock = Math.max(0, currentInventory.stock_qty - item.qty);
-            await supabase
-              .from("inventory")
-              .update({ stock_qty: newStock })
-              .eq("id", item.inventory_id);
-          }
-        }
+        // Inventory reduction is now handled by database trigger
       }
 
       // Clear cart
