@@ -22,6 +22,7 @@ export default function WholesalerInventory() {
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [imageUrls, setImageUrls] = useState<string>("");
+  const [editImageUrls, setEditImageUrls] = useState<string>("");
 
   useEffect(() => {
     fetchData();
@@ -154,6 +155,7 @@ export default function WholesalerInventory() {
           return; // Block the save if it's a purchased product with increased quantity
         }
 
+        // Update inventory
         const { error } = await supabase
           .from("inventory")
           .update({
@@ -166,7 +168,20 @@ export default function WholesalerInventory() {
           .eq("id", editingItem.id);
 
         if (error) throw error;
-        toast({ title: "Inventory updated successfully" });
+
+        // Update product images if changed
+        const imageUrlsInput = formData.get("edit_images") as string;
+        if (imageUrlsInput && imageUrlsInput.trim()) {
+          const imageUrlArray = imageUrlsInput.split(',').map(url => url.trim()).filter(url => url);
+          const { error: productError } = await supabase
+            .from("products")
+            .update({ images: imageUrlArray })
+            .eq("id", editingItem.product_id);
+          
+          if (productError) throw productError;
+        }
+
+        toast({ title: "Inventory item updated successfully" });
       }
 
       setIsDialogOpen(false);
@@ -323,7 +338,10 @@ export default function WholesalerInventory() {
                   <div className="flex gap-2">
                     <Dialog open={isDialogOpen && editingItem?.id === item.id} onOpenChange={setIsDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button variant="outline" onClick={() => setEditingItem(item)}>
+                        <Button variant="outline" onClick={() => {
+                          setEditingItem(item);
+                          setEditImageUrls(item.products?.images?.join(', ') || '');
+                        }}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                       </DialogTrigger>
@@ -347,6 +365,20 @@ export default function WholesalerInventory() {
                           <div>
                             <Label htmlFor="delivery_days">Delivery Days</Label>
                             <Input id="delivery_days" name="delivery_days" type="number" defaultValue={item.delivery_days} required />
+                          </div>
+                          <div>
+                            <Label htmlFor="edit_images">Product Images (comma-separated URLs)</Label>
+                            <Input 
+                              id="edit_images" 
+                              name="edit_images" 
+                              type="text"
+                              placeholder="https://example.com/image1.jpg, https://example.com/image2.jpg"
+                              value={editImageUrls}
+                              onChange={(e) => setEditImageUrls(e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Enter multiple image URLs separated by commas
+                            </p>
                           </div>
                           <div className="flex items-center gap-2">
                             <input type="checkbox" id="is_active" name="is_active" defaultChecked={item.is_active} />
