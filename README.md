@@ -1,22 +1,14 @@
-# Welcome to your Lovable project
+# MarketPlace Project
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/6b6b1c00-cb2e-4e33-8200-a787631cb9a5
+A three-sided marketplace connecting customers, retailers, and wholesalers.
 
 ## How can I edit this code?
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/6b6b1c00-cb2e-4e33-8200-a787631cb9a5) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
 **Use your preferred IDE**
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+You can clone this repo and push changes to work locally using your own IDE.
 
 The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
@@ -60,14 +52,14 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Can I use a different port?
+
+Yes, you can change the port in `vite.config.ts`.
+
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/6b6b1c00-cb2e-4e33-8200-a787631cb9a5) and click on Share -> Publish.
+You can deploy this project using various methods like Vercel, Netlify, or GitHub Pages.
 
-## Can I connect a custom domain to my Lovable project?
+## Can I connect a custom domain?
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Yes, you can connect a custom domain to your project when deploying to various hosting platforms.

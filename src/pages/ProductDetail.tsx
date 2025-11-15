@@ -2,13 +2,17 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Heart, Share2, Store, ArrowLeft, Package, Star } from "lucide-react";
+import { ShoppingCart, Heart, Share2, Package, Star, MapPin, Truck } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import FeedbackForm from "@/components/FeedbackForm";
 import ReviewsList from "@/components/ReviewsList";
+import { useProductViewHistory } from "@/hooks/useProductViewHistory";
+import { AmazonHeader } from "@/components/amazon/AmazonHeader";
+import { AmazonFooter } from "@/components/amazon/AmazonFooter";
+import { Separator } from "@/components/ui/separator";
 
 const ProductDetail = () => {
   const { slug } = useParams();
@@ -23,12 +27,56 @@ const ProductDetail = () => {
   const [inWishlist, setInWishlist] = useState(false);
   const [estimatedDelivery, setEstimatedDelivery] = useState("");
   const [wholesalerStock, setWholesalerStock] = useState<any>(null); // Track wholesaler source stock
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [cartCount, setCartCount] = useState(0);
+  const [wishlistCount, setWishlistCount] = useState(0);
+
+  // Track product view for customers
+  useProductViewHistory(product?.id, userRole);
 
   useEffect(() => {
     fetchProduct();
     checkWishlist();
     calculateDelivery();
+    fetchProfile();
+    fetchCounts();
   }, [slug]);
+
+  const fetchProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      setProfile(data);
+    }
+  };
+
+  const fetchCounts = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { count: cartCount } = await supabase
+        .from("cart_items")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      
+      const { count: wishlistCount } = await supabase
+        .from("wishlist")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      
+      setCartCount(cartCount || 0);
+      setWishlistCount(wishlistCount || 0);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
 
   const fetchProduct = async () => {
     const { data: productData } = await supabase
@@ -47,7 +95,7 @@ const ProductDetail = () => {
 
     // Check user role to determine what inventory to show
     const { data: { user } } = await supabase.auth.getUser();
-    let userRole = null;
+    let roleFromDb = null;
     
     if (user) {
       const { data: profile } = await supabase
@@ -56,14 +104,15 @@ const ProductDetail = () => {
         .eq("id", user.id)
         .single();
       
-      userRole = profile?.role;
-      console.log("👤 User role:", userRole);
+      roleFromDb = profile?.role;
+      setUserRole(roleFromDb);
+      console.log("👤 User role:", roleFromDb);
     }
 
     let inventoryData = null;
 
     // CUSTOMERS and non-logged in users see RETAILER inventory
-    if (userRole === 'customer' || !userRole) {
+    if (roleFromDb === 'customer' || !roleFromDb) {
       console.log("🛒 Fetching RETAILER inventory for customer view");
       
       const { data } = await supabase
@@ -301,8 +350,8 @@ const ProductDetail = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
   }
@@ -316,60 +365,65 @@ const ProductDetail = () => {
   const attributes = typeof product.attributes === 'object' && product.attributes !== null ? product.attributes : {};
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto flex items-center gap-4 px-4 py-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-bold">Product Details</h1>
-        </div>
-      </header>
+    <div className="min-h-screen flex flex-col bg-background">
+      <AmazonHeader
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+        userName={profile?.full_name}
+        onSignOut={handleSignOut}
+      />
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid gap-8 lg:grid-cols-2">
+      <main className="flex-1 container mx-auto px-4 py-6">
+        <div className="grid gap-6 lg:grid-cols-12">
           {/* Images Section */}
-          <div className="space-y-4">
-            <div className="aspect-square overflow-hidden rounded-lg border bg-muted">
-              <img
-                src={images[selectedImage] || "/placeholder.svg"}
-                alt={product.name}
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.src = "/placeholder.svg";
-                }}
-              />
-            </div>
-            {images.length > 1 && (
-              <div className="grid grid-cols-4 gap-2">
-                {images.map((img: string, idx: number) => (
-                  <button
-                    key={idx}
-                    onClick={() => setSelectedImage(idx)}
-                    className={`aspect-square overflow-hidden rounded border-2 ${
-                      selectedImage === idx ? "border-primary" : "border-transparent"
-                    }`}
-                  >
-                    <img 
-                      src={img} 
-                      alt="" 
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.src = "/placeholder.svg";
-                      }}
-                    />
-                  </button>
-                ))}
+          <div className="lg:col-span-5">
+            <div className="sticky top-24 space-y-4">
+              <div className="aspect-square overflow-hidden rounded-xl border-2 border-border bg-muted/30 p-4">
+                <img
+                  src={images[selectedImage] || "/placeholder.svg"}
+                  alt={product.name}
+                  className="h-full w-full object-contain"
+                  onError={(e) => {
+                    e.currentTarget.src = "/placeholder.svg";
+                  }}
+                />
               </div>
-            )}
+              {images.length > 1 && (
+                <div className="grid grid-cols-6 gap-2">
+                  {images.map((img: string, idx: number) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedImage(idx)}
+                      className={`aspect-square overflow-hidden rounded-lg border-2 transition-all hover:border-primary ${
+                        selectedImage === idx ? "border-primary ring-2 ring-primary/20" : "border-border"
+                      }`}
+                    >
+                      <img 
+                        src={img} 
+                        alt="" 
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = "/placeholder.svg";
+                        }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Product Info */}
-          <div className="space-y-6">
+          <div className="lg:col-span-7 space-y-4">
+            {/* Product Title & Brand */}
             <div>
-              <h1 className="text-3xl font-bold mb-2">{product.name}</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+                {product.name}
+              </h1>
               {product.brand && (
-                <p className="text-muted-foreground">by {product.brand}</p>
+                <p className="text-sm text-muted-foreground">
+                  Brand: <span className="text-primary font-medium">{product.brand}</span>
+                </p>
               )}
               {product.category && (
                 <Badge variant="secondary" className="mt-2">
@@ -378,225 +432,273 @@ const ProductDetail = () => {
               )}
             </div>
 
+            <Separator />
+
+            {/* Price Section */}
             {selectedInventory && (
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-baseline gap-3 mb-4">
-                    <span className="text-3xl font-bold">₹{selectedInventory.price}</span>
-                    {selectedInventory.mrp && selectedInventory.mrp > selectedInventory.price && (
-                      <>
-                        <span className="text-xl text-muted-foreground line-through">
-                          ₹{selectedInventory.mrp}
-                        </span>
-                        <Badge variant="destructive">
-                          {Math.round(((selectedInventory.mrp - selectedInventory.price) / selectedInventory.mrp) * 100)}% OFF
-                        </Badge>
-                      </>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                    <Store className="h-4 w-4" />
-                    <span>Sold by {selectedInventory.store.name}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2 mb-4">
-                    <Badge variant={selectedInventory.stock_qty > 10 ? "default" : "secondary"}>
-                      {selectedInventory.stock_qty > 10 ? "In Stock" : `Only ${selectedInventory.stock_qty} left`}
-                    </Badge>
-                    {wholesalerStock && wholesalerStock.stock_qty > 0 && (
-                      <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                        +{wholesalerStock.stock_qty} available via wholesaler
-                      </Badge>
-                    )}
-                  </div>
-
-                  {estimatedDelivery && (
-                    <div className="flex items-center gap-2 text-sm mb-4 p-3 bg-muted rounded-lg">
-                      <Package className="h-4 w-4 text-primary" />
-                      <span>Estimated delivery by <strong>{estimatedDelivery}</strong></span>
+              <Card className="border-2">
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                        ₹{selectedInventory.price.toLocaleString()}
+                      </span>
+                      {selectedInventory.mrp && selectedInventory.mrp > selectedInventory.price && (
+                        <>
+                          <span className="text-xl text-muted-foreground line-through">
+                            ₹{selectedInventory.mrp.toLocaleString()}
+                          </span>
+                          <Badge variant="destructive" className="text-sm">
+                            {Math.round(((selectedInventory.mrp - selectedInventory.price) / selectedInventory.mrp) * 100)}% OFF
+                          </Badge>
+                        </>
+                      )}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
 
-            {inventory.length > 1 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Available Sellers</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {inventory.map((inv) => (
-                    <button
-                      key={inv.id}
-                      onClick={() => setSelectedInventory(inv)}
-                      className={`w-full text-left p-3 rounded border-2 transition-colors ${
-                        selectedInventory?.id === inv.id
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/50"
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium">{inv.store.name}</p>
-                          <p className="text-sm text-muted-foreground">Stock: {inv.stock_qty}</p>
+                    {/* Stock & Delivery Info */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Badge 
+                        variant={selectedInventory.stock_qty > 10 ? "default" : "secondary"}
+                        className="text-sm"
+                      >
+                        {selectedInventory.stock_qty > 10 ? "In Stock" : `Only ${selectedInventory.stock_qty} left`}
+                      </Badge>
+                      
+                      {estimatedDelivery && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Truck className="h-4 w-4 text-primary" />
+                          <span>Get it by <strong className="text-foreground">{estimatedDelivery}</strong></span>
                         </div>
-                        <p className="font-bold">₹{inv.price}</p>
+                      )}
+                    </div>
+
+                    {wholesalerStock && wholesalerStock.stock_qty > 0 && (
+                      <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 p-3 rounded-lg">
+                        <p className="text-sm text-orange-800 dark:text-orange-200">
+                          ✨ <strong>More available:</strong> Up to <strong>{(selectedInventory?.stock_qty || 0) + (wholesalerStock?.stock_qty || 0)} units</strong> can be ordered
+                        </p>
                       </div>
-                    </button>
-                  ))}
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}
 
-            <div className="space-y-3">
-              <div className="flex gap-2 items-center">
-                <div className="flex items-center border rounded-md bg-white dark:bg-gray-900">
+            {/* Multiple Sellers Section - Only show if more than 1 seller */}
+            {inventory.length > 1 && (
+              <Card className="border-2">
+                <CardContent className="p-4">
+                  <h3 className="font-semibold text-sm mb-3 text-muted-foreground">
+                    {inventory.length} sellers • Select one
+                  </h3>
+                  <div className="space-y-2">
+                    {inventory.map((inv) => {
+                      const discount = inv.mrp && inv.mrp > inv.price 
+                        ? Math.round(((inv.mrp - inv.price) / inv.mrp) * 100)
+                        : 0;
+                      
+                      return (
+                        <button
+                          key={inv.id}
+                          onClick={() => setSelectedInventory(inv)}
+                          className={`w-full text-left p-3 rounded-lg border transition-all ${
+                            selectedInventory?.id === inv.id
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50 hover:bg-muted/50"
+                          }`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{inv.store.name}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {inv.stock_qty} in stock
+                                </Badge>
+                                {discount > 0 && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    {discount}% off
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right ml-3">
+                              <p className="text-lg font-bold text-primary">₹{inv.price.toLocaleString()}</p>
+                              {inv.mrp && inv.mrp > inv.price && (
+                                <p className="text-xs text-muted-foreground line-through">₹{inv.mrp.toLocaleString()}</p>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Quantity & Actions */}
+            <Card className="border-2">
+              <CardContent className="p-6 space-y-4">
+                {/* Quantity Selector */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Quantity</label>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center border-2 rounded-lg overflow-hidden">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        disabled={quantity <= 1}
+                        className="h-10 px-4 rounded-none"
+                      >
+                        -
+                      </Button>
+                      <input
+                        type="number"
+                        min="1"
+                        max={wholesalerStock ? (selectedInventory?.stock_qty || 0) + (wholesalerStock?.stock_qty || 0) : selectedInventory?.stock_qty}
+                        value={quantity}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 1;
+                          const maxStock = selectedInventory?.stock_qty || 1;
+                          const wholesalerAvailable = wholesalerStock?.stock_qty || 0;
+                          const totalAvailable = maxStock + wholesalerAvailable;
+                          setQuantity(Math.max(1, Math.min(totalAvailable, val)));
+                        }}
+                        className="w-16 h-10 text-center border-0 focus:outline-none focus:ring-0 bg-transparent font-semibold text-lg"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const maxStock = selectedInventory?.stock_qty || 1;
+                          const wholesalerAvailable = wholesalerStock?.stock_qty || 0;
+                          const totalAvailable = maxStock + wholesalerAvailable;
+                          setQuantity(Math.min(totalAvailable, quantity + 1));
+                        }}
+                        disabled={quantity >= ((selectedInventory?.stock_qty || 0) + (wholesalerStock?.stock_qty || 0))}
+                        className="h-10 px-4 rounded-none"
+                      >
+                        +
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      ({((selectedInventory?.stock_qty || 0) + (wholesalerStock?.stock_qty || 0))} available)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    disabled={quantity <= 1}
-                    className="h-10 px-3"
+                    size="lg"
+                    className="flex-1 bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 text-white font-semibold"
+                    onClick={buyNow}
+                    disabled={!selectedInventory}
                   >
-                    -
+                    <ShoppingCart className="mr-2 h-5 w-5" />
+                    Buy Now
                   </Button>
-                  <input
-                    type="number"
-                    min="1"
-                    max={wholesalerStock ? (selectedInventory?.stock_qty || 0) + (wholesalerStock?.stock_qty || 0) : selectedInventory?.stock_qty}
-                    value={quantity}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value) || 1;
-                      const maxStock = selectedInventory?.stock_qty || 1;
-                      const wholesalerAvailable = wholesalerStock?.stock_qty || 0;
-                      const totalAvailable = maxStock + wholesalerAvailable;
-                      setQuantity(Math.max(1, Math.min(totalAvailable, val)));
-                    }}
-                    className="w-20 h-10 px-3 py-2 text-center border-0 focus:outline-none focus:ring-0 bg-transparent font-medium"
-                  />
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const maxStock = selectedInventory?.stock_qty || 1;
-                      const wholesalerAvailable = wholesalerStock?.stock_qty || 0;
-                      const totalAvailable = maxStock + wholesalerAvailable;
-                      setQuantity(Math.min(totalAvailable, quantity + 1));
-                    }}
-                    disabled={quantity >= ((selectedInventory?.stock_qty || 0) + (wholesalerStock?.stock_qty || 0))}
-                    className="h-10 px-3"
+                    size="lg"
+                    variant="outline"
+                    className="flex-1 border-2 hover:bg-primary/5"
+                    onClick={addToCart}
+                    disabled={!selectedInventory}
                   >
-                    +
+                    <Package className="mr-2 h-5 w-5" />
+                    Add to Cart
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant={inWishlist ? "default" : "outline"}
+                    className="border-2"
+                    onClick={toggleWishlist}
+                  >
+                    <Heart className={`h-5 w-5 ${inWishlist ? "fill-current" : ""}`} />
                   </Button>
                 </div>
-                {wholesalerStock && quantity > (selectedInventory?.stock_qty || 0) && (
-                  <p className="text-sm text-orange-600 flex items-center gap-1 font-medium">
-                    <Package className="h-4 w-4" />
-                    {quantity - (selectedInventory?.stock_qty || 0)} units will be sourced from wholesaler
-                  </p>
-                )}
-              </div>
-              
-              {wholesalerStock && (
-                <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 p-3 rounded-md">
-                  <p className="text-sm text-orange-800 dark:text-orange-200">
-                    💡 <strong>Good news!</strong> You can order up to <strong>{(selectedInventory?.stock_qty || 0) + (wholesalerStock?.stock_qty || 0)} units</strong>
-                    <br />
-                    <span className="text-xs">Retailer has {selectedInventory?.stock_qty}, additional stock available from wholesaler</span>
-                  </p>
-                </div>
-              )}
-            </div>
+              </CardContent>
+            </Card>
 
-            <div className="flex gap-3">
-              <Button
-                size="lg"
-                className="flex-1 bg-gradient-to-r from-primary to-primary-glow"
-                onClick={buyNow}
-                disabled={!selectedInventory}
-              >
-                Buy Now
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="flex-1"
-                onClick={addToCart}
-                disabled={!selectedInventory}
-              >
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                Add to Cart
-              </Button>
-              <Button
-                size="lg"
-                variant={inWishlist ? "default" : "outline"}
-                onClick={toggleWishlist}
-              >
-                <Heart className={`h-5 w-5 ${inWishlist ? "fill-current" : ""}`} />
-              </Button>
-            </div>
-
-            <Tabs defaultValue="description" className="w-full">
-              <TabsList className="w-full">
-                <TabsTrigger value="description" className="flex-1">Description</TabsTrigger>
-                <TabsTrigger value="details" className="flex-1">Details</TabsTrigger>
-                <TabsTrigger value="reviews" className="flex-1">Reviews</TabsTrigger>
-              </TabsList>
-              <TabsContent value="description" className="mt-4">
-                <p className="text-muted-foreground whitespace-pre-line">
-                  {product.description || "No description available."}
-                </p>
-              </TabsContent>
-              <TabsContent value="details" className="mt-4">
-                {Object.keys(attributes).length > 0 ? (
-                  <dl className="space-y-2">
-                    {Object.entries(attributes).map(([key, value]) => (
-                      <div key={key} className="flex justify-between py-2 border-b">
-                        <dt className="font-medium capitalize">{key.replace(/_/g, " ")}</dt>
-                        <dd className="text-muted-foreground">{String(value)}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                ) : (
-                  <p className="text-muted-foreground">No additional details available.</p>
-                )}
-              </TabsContent>
-              <TabsContent value="reviews" className="mt-4 space-y-6">
-                {product.overall_rating && (
-                  <div className="flex items-center gap-4 pb-4 border-b">
-                    <div className="text-center">
-                      <div className="text-4xl font-bold">{product.overall_rating}</div>
-                      <div className="flex items-center gap-1 mt-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-4 w-4 ${
-                              i < Math.round(product.overall_rating)
-                                ? "fill-primary text-primary"
-                                : "text-muted"
-                            }`}
-                          />
+            {/* Product Details Tabs */}
+            <Card className="border-2">
+              <CardContent className="p-6">
+                <Tabs defaultValue="description" className="w-full">
+                  <TabsList className="w-full grid grid-cols-3">
+                    <TabsTrigger value="description">Description</TabsTrigger>
+                    <TabsTrigger value="details">Specifications</TabsTrigger>
+                    <TabsTrigger value="reviews">Reviews</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="description" className="mt-6">
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <p className="text-foreground whitespace-pre-line leading-relaxed">
+                        {product.description || "No description available."}
+                      </p>
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="details" className="mt-6">
+                    {Object.keys(attributes).length > 0 ? (
+                      <div className="space-y-3">
+                        {Object.entries(attributes).map(([key, value]) => (
+                          <div key={key} className="flex justify-between py-3 border-b last:border-0">
+                            <dt className="font-medium text-muted-foreground capitalize">
+                              {key.replace(/_/g, " ")}
+                            </dt>
+                            <dd className="text-foreground font-medium">{String(value)}</dd>
+                          </div>
                         ))}
                       </div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {product.rating_count || 0} ratings
+                    ) : (
+                      <p className="text-muted-foreground text-center py-8">
+                        No specifications available.
+                      </p>
+                    )}
+                  </TabsContent>
+                  
+                  <TabsContent value="reviews" className="mt-6 space-y-6">
+                    {product.overall_rating && (
+                      <div className="flex items-center gap-6 pb-6 border-b">
+                        <div className="text-center">
+                          <div className="text-5xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                            {product.overall_rating}
+                          </div>
+                          <div className="flex items-center justify-center gap-1 mt-2">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-5 w-5 ${
+                                  i < Math.round(product.overall_rating)
+                                    ? "fill-primary text-primary"
+                                    : "text-muted-foreground"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-2">
+                            {product.rating_count || 0} ratings
+                          </div>
+                        </div>
                       </div>
+                    )}
+                    
+                    <ReviewsList productId={product.id} />
+                    
+                    <div className="pt-6 border-t">
+                      <h3 className="font-semibold mb-4">Write a Review</h3>
+                      <FeedbackForm productId={product.id} />
                     </div>
-                  </div>
-                )}
-                
-                <ReviewsList productId={product.id} />
-                
-                <div className="pt-4 border-t">
-                  <FeedbackForm productId={product.id} />
-                </div>
-              </TabsContent>
-            </Tabs>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
+
+      <AmazonFooter />
     </div>
   );
 };

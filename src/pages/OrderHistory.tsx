@@ -3,9 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, MapPin } from "lucide-react";
+import { MapPin, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { DeliveryMap } from "@/components/DeliveryMap";
+import { AmazonHeader } from "@/components/amazon/AmazonHeader";
+import { AmazonFooter } from "@/components/amazon/AmazonFooter";
 import {
   Dialog,
   DialogContent,
@@ -21,9 +23,14 @@ const OrderHistory = () => {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [mapDialogOpen, setMapDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [wishlistCount, setWishlistCount] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
 
   useEffect(() => {
+    fetchProfile();
     fetchOrders();
+    fetchCounts();
 
     // Set up real-time subscription for new orders
     const setupRealtimeSubscription = async () => {
@@ -54,6 +61,42 @@ const OrderHistory = () => {
 
     setupRealtimeSubscription();
   }, []);
+
+  const fetchProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+
+    setProfile(data);
+  };
+
+  const fetchCounts = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { count: wishlistCount } = await supabase
+      .from("wishlist")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    const { count: cartCount } = await supabase
+      .from("cart")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    setWishlistCount(wishlistCount || 0);
+    setCartCount(cartCount || 0);
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
 
   const fetchOrders = async () => {
     try {
@@ -175,55 +218,84 @@ const OrderHistory = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="mx-auto max-w-4xl">
-        <Button variant="ghost" onClick={() => navigate("/dashboard")} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </Button>
+    <div className="min-h-screen bg-background flex flex-col">
+      <AmazonHeader
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+        userName={profile?.full_name?.split(" ")[0]}
+        onSignOut={handleSignOut}
+      />
 
-        <h1 className="mb-6 text-3xl font-bold">Order History</h1>
-
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      <main className="flex-1">
+        <div className="container mx-auto px-4 py-8">
+          {/* Page Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-2">
+              My Orders
+            </h1>
+            <p className="text-muted-foreground">Track, manage and view all your orders</p>
           </div>
-        ) : orders.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No orders yet</p>
-              <Button className="mt-4" onClick={() => navigate("/dashboard")}>
-                Start Shopping
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {orders.map((order) => {
-              const isExpanded = expandedOrderId === order.id;
-              const statusSteps = getStatusSteps();
-              const currentStepIndex = statusSteps.findIndex(s => s.status === order.status);
+
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="text-center">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading your orders...</p>
+              </div>
+            </div>
+          ) : orders.length === 0 ? (
+            <Card className="border-2 border-dashed">
+              <CardContent className="py-16 text-center">
+                <div className="mx-auto w-24 h-24 mb-6 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+                  <Package className="h-12 w-12 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">No orders yet</h3>
+                <p className="text-muted-foreground mb-6">Start shopping to see your orders here</p>
+                <Button 
+                  className="bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover"
+                  onClick={() => navigate("/customer-dashboard")}
+                >
+                  Start Shopping
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {orders.map((order) => {
+                const isExpanded = expandedOrderId === order.id;
+                const statusSteps = getStatusSteps();
+                const currentStepIndex = statusSteps.findIndex(s => s.status === order.status);
               
               return (
                 <Card 
                   key={order.id} 
-                  className="transition-all hover:shadow-lg cursor-pointer overflow-hidden"
+                  className="transition-all hover:shadow-xl cursor-pointer overflow-hidden border-2 hover:border-primary/50"
                   onClick={() => toggleOrderExpand(order.id)}
                 >
                   <CardContent className="p-6">
                     {/* Header Section */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
-                        <p className="font-semibold text-lg">Order #{order.order_number}</p>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Package className="h-5 w-5 text-primary" />
+                          <p className="font-semibold text-lg">Order #{order.order_number}</p>
+                        </div>
                         <p className="text-sm text-muted-foreground">
-                          Ordered: {new Date(order.placed_at).toLocaleDateString()}
+                          Ordered: {new Date(order.placed_at).toLocaleDateString('en-IN', { 
+                            day: 'numeric', 
+                            month: 'long', 
+                            year: 'numeric' 
+                          })}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          Store: {order.stores?.name || 'N/A'} ({order.stores?.type || 'N/A'})
+                          Store: <span className="font-medium">{order.stores?.name || 'N/A'}</span> ({order.stores?.type || 'N/A'})
                         </p>
                       </div>
                       <div className="flex flex-col gap-2 items-end">
-                        <Badge variant={getStatusColor(order.status) as any}>
+                        <Badge 
+                          variant={getStatusColor(order.status) as any}
+                          className="text-xs font-semibold"
+                        >
                           {order.status.toUpperCase()}
                         </Badge>
                         <Button
@@ -234,7 +306,7 @@ const OrderHistory = () => {
                             setSelectedOrder(order);
                             setMapDialogOpen(true);
                           }}
-                          className="gap-1"
+                          className="gap-1 hover:bg-gradient-to-r hover:from-primary/10 hover:to-secondary/10"
                         >
                           <MapPin className="h-4 w-4" />
                           Track
@@ -243,8 +315,8 @@ const OrderHistory = () => {
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="mb-6">
-                      <div className="flex justify-between mb-2">
+                    <div className="mb-6 bg-muted/30 p-4 rounded-lg">
+                      <div className="flex justify-between mb-3">
                         {statusSteps.map((step, index) => {
                           const isCompleted = index <= currentStepIndex;
                           const isCurrent = index === currentStepIndex;
@@ -252,16 +324,16 @@ const OrderHistory = () => {
                           return (
                             <div key={step.status} className="flex flex-col items-center flex-1">
                               <div 
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-300 ${
+                                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm transition-all duration-300 ${
                                   isCompleted 
-                                    ? 'bg-primary text-primary-foreground scale-110' 
+                                    ? 'bg-gradient-to-br from-primary to-secondary text-white scale-110 shadow-lg' 
                                     : 'bg-muted text-muted-foreground'
-                                } ${isCurrent ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+                                } ${isCurrent ? 'ring-4 ring-primary/30 ring-offset-2' : ''}`}
                               >
                                 {step.icon}
                               </div>
-                              <p className={`text-xs mt-1 text-center ${
-                                isCompleted ? 'text-primary font-medium' : 'text-muted-foreground'
+                              <p className={`text-xs mt-2 text-center font-medium ${
+                                isCompleted ? 'text-primary' : 'text-muted-foreground'
                               }`}>
                                 {step.label}
                               </p>
@@ -269,9 +341,9 @@ const OrderHistory = () => {
                           );
                         })}
                       </div>
-                      <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="relative h-2 bg-muted rounded-full overflow-hidden mt-4">
                         <div 
-                          className="absolute top-0 left-0 h-full bg-primary transition-all duration-500 ease-out"
+                          className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500 ease-out rounded-full"
                           style={{ width: `${getOrderProgress(order.status)}%` }}
                         />
                       </div>
@@ -462,7 +534,10 @@ const OrderHistory = () => {
             )}
           </DialogContent>
         </Dialog>
-      </div>
+        </div>
+      </main>
+
+      <AmazonFooter />
     </div>
   );
 };

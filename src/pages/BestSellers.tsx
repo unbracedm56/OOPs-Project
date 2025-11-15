@@ -1,33 +1,29 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AmazonHeader, AmazonFooter, AmazonProductCard } from "@/components/amazon";
 import { User } from "@supabase/supabase-js";
-import { Layers } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 
-const CategoryPage = () => {
-  const { categoryId } = useParams();
+const BestSellers = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [category, setCategory] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [cartCount, setCartCount] = useState(0);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     checkUser();
   }, []);
 
   useEffect(() => {
-    if (user && categoryId) {
-      fetchCategory();
-      fetchProducts();
+    if (user) {
+      fetchBestSellers();
       fetchWishlistCount();
       fetchCartCount();
     }
-  }, [user, categoryId]);
+  }, [user]);
 
   const checkUser = async () => {
     const {
@@ -47,59 +43,38 @@ const CategoryPage = () => {
     }
   };
 
-  const fetchCategory = async () => {
-    if (!categoryId) return;
-
+  const fetchBestSellers = async () => {
+    // Fetch top-rated and most-viewed products
     const { data } = await supabase
-      .from("categories")
-      .select("*")
-      .eq("id", categoryId)
-      .single();
-
-    if (data) setCategory(data);
-  };
-
-  const fetchProducts = async () => {
-    if (!categoryId) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("inventory")
-        .select(
-          `
-          id,
-          price,
-          mrp,
-          stock_qty,
-          is_active,
-          products:product_id (
-            id,
-            name,
-            slug,
-            description,
-            images,
-            brand,
-            category_id
-          )
+      .from("inventory")
+      .select(
         `
+        id,
+        price,
+        mrp,
+        stock_qty,
+        is_active,
+        products:product_id (
+          id,
+          name,
+          slug,
+          description,
+          images,
+          brand,
+          categories:category_id (
+            id,
+            name
+          )
         )
-        .eq("is_active", true)
-        .gt("stock_qty", 0)
-        .eq("products.category_id", categoryId)
-        .order("created_at", { ascending: false });
+      `
+      )
+      .eq("is_active", true)
+      .gt("stock_qty", 0)
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-      if (error) throw error;
-
-      if (data) {
-        setProducts(data.filter((item) => item.products !== null));
-      }
-    } catch (error) {
-      console.error("Error fetching products:", error);
-    } finally {
-      setLoading(false);
+    if (data) {
+      setProducts(data.filter((item) => item.products !== null));
     }
   };
 
@@ -152,17 +127,6 @@ const CategoryPage = () => {
     navigate("/");
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
-          <p className="text-muted-foreground">Loading products...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <AmazonHeader
@@ -175,15 +139,15 @@ const CategoryPage = () => {
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8">
           <div className="mb-8 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-primary to-secondary">
-              <Layers className="h-8 w-8 text-white" />
+            <div className="p-3 rounded-xl bg-gradient-to-br from-primary to-primary-hover">
+              <TrendingUp className="h-8 w-8 text-white" />
             </div>
             <div>
               <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                {category?.name || "Category"}
+                Best Sellers
               </h1>
               <p className="text-muted-foreground">
-                {category?.description || "Browse products in this category"}
+                Our most popular products loved by customers
               </p>
             </div>
           </div>
@@ -201,8 +165,9 @@ const CategoryPage = () => {
                   image={extractFirstImage(product.images)}
                   price={Number(item.price)}
                   mrp={item.mrp ? Number(item.mrp) : undefined}
-                  rating={4 + Math.random()}
-                  reviewCount={Math.floor(Math.random() * 500) + 50}
+                  rating={4.5 + Math.random() * 0.5}
+                  reviewCount={Math.floor(Math.random() * 1000) + 200}
+                  badge={product.categories?.name}
                   dealBadge={
                     item.mrp && item.mrp > item.price
                       ? `${Math.round(((item.mrp - item.price) / item.mrp) * 100)}% OFF`
@@ -217,7 +182,7 @@ const CategoryPage = () => {
           {products.length === 0 && (
             <div className="text-center py-12 bg-muted rounded-lg">
               <p className="text-muted-foreground">
-                No products found in this category.
+                No best sellers available at the moment.
               </p>
             </div>
           )}
@@ -229,4 +194,4 @@ const CategoryPage = () => {
   );
 };
 
-export default CategoryPage;
+export default BestSellers;

@@ -16,6 +16,7 @@ import { Slider } from "@/components/ui/slider";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useEffect as useRealtimeEffect } from "react";
 import { useLocationFilter } from "@/hooks/useLocationFilter";
+import { ContinueShoppingCarousel } from "@/components/ContinueShoppingCarousel";
 
 const CustomerDashboard = () => {
   const navigate = useNavigate();
@@ -431,11 +432,12 @@ const CustomerDashboard = () => {
           </div>
         </div>
 
+        {/* Continue Shopping Section */}
+        <ContinueShoppingCarousel />
+
         {/* Products Grid */}
         <div>
-          <h3 className="text-lg font-semibold mb-4">
-            {selectedCategory ? "Filtered Products" : "Recommended for You"}
-          </h3>
+          <h3 className="text-lg font-semibold mb-4">Recommended for You</h3>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredProducts.map((item) => {
               const product = item.products;

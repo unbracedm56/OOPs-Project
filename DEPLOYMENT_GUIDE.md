@@ -111,7 +111,7 @@ Before deploying, ensure:
 5. **Configure GitHub**:
    - Go to your repository → Settings → Pages
    - Source: Deploy from branch `gh-pages`
-   - Your site will be at: `https://yourusername.github.io/lovable-project-6b6b1c00/`
+   - Your site will be at: `https://yourusername.github.io/your-repo-name/`
 
 ### Option 4: Cloudflare Pages
 

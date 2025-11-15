@@ -101,7 +101,7 @@ const Landing = () => {
                 <Link to="/auth">Get Started</Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link to="/dashboard">Browse Products</Link>
+                <Link to="/explore">Explore Products</Link>
               </Button>
             </div>
           </div>
@@ -109,98 +109,88 @@ const Landing = () => {
       </section>
 
       {/* Roles Section */}
-      <section className="container mx-auto px-4 py-16 lg:py-24">
-        <div className="mb-12 text-center">
-          <h2 className="mb-4 text-3xl font-bold lg:text-4xl">Choose Your Role</h2>
-          <p className="text-lg text-muted-foreground">
-            Whether you're buying, selling, or supplying - we've got you covered
-          </p>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-3">
-          {roles.map((role) => {
-            const Icon = role.icon;
-            return (
-              <Card
-                key={role.title}
-                className="group relative overflow-hidden border-2 p-6 transition-all hover:scale-105 hover:shadow-elegant"
-              >
-                <div className={`absolute inset-0 bg-gradient-to-br ${role.gradient} opacity-5 transition-opacity group-hover:opacity-10`} />
-                
-                <div className="relative">
-                  <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${role.gradient}`}>
-                    <Icon className="h-6 w-6 text-white" />
-                  </div>
-                  
+      <section className="py-20">
+        <div className="container mx-auto px-4">
+          <div className="mx-auto mb-12 max-w-2xl text-center">
+            <h2 className="text-4xl font-bold tracking-tight">A Platform for Everyone</h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              Whether you're buying, selling, or supplying, our platform is built for you.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+            {roles.map((role, index) => (
+              <Card key={index} className="overflow-hidden text-center shadow-lg transition-transform hover:-translate-y-2">
+                <div className={`bg-gradient-to-br ${role.gradient} p-8`}>
+                  <role.icon className="mx-auto h-16 w-16 text-white" />
+                </div>
+                <div className="p-6">
                   <h3 className="mb-2 text-2xl font-bold">{role.title}</h3>
                   <p className="mb-4 text-muted-foreground">{role.description}</p>
-                  
-                  <ul className="space-y-2">
-                    {role.features.map((feature) => (
-                      <li key={feature} className="flex items-center gap-2 text-sm">
-                        <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        {feature}
+                  <ul className="space-y-2 text-left">
+                    {role.features.map((feature, i) => (
+                      <li key={i} className="flex items-center gap-3">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500/20 text-green-500">
+                          <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path>
+                          </svg>
+                        </div>
+                        <span className="text-sm">{feature}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               </Card>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="container mx-auto px-4 py-16 lg:py-24">
-        <div className="mb-12 text-center">
-          <h2 className="mb-4 text-3xl font-bold lg:text-4xl">Why Choose Us</h2>
-          <p className="text-lg text-muted-foreground">
-            Built for modern commerce with powerful features
-          </p>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => {
-            const Icon = feature.icon;
-            return (
-              <div
-                key={feature.title}
-                className="group rounded-xl border bg-card p-6 transition-all hover:shadow-card"
-              >
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                  <Icon className="h-5 w-5" />
+      <section className="bg-muted/40 py-20">
+        <div className="container mx-auto px-4">
+          <div className="mx-auto mb-12 max-w-2xl text-center">
+            <h2 className="text-4xl font-bold tracking-tight">Powerful Features</h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              Everything you need for a modern commerce experience.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((feature, index) => (
+              <div key={index} className="flex items-start gap-4">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <feature.icon className="h-6 w-6" />
                 </div>
-                <h3 className="mb-2 font-semibold">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
+                <div>
+                  <h3 className="text-xl font-semibold">{feature.title}</h3>
+                  <p className="mt-1 text-muted-foreground">{feature.description}</p>
+                </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="container mx-auto px-4 py-16 lg:py-24">
-        <Card className="relative overflow-hidden border-2 bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 p-12 text-center">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNkZGQiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE0YzAtMTEgOS0yMCAyMC0yMHYyMGgtMjB6TTAgMTRjMC0xMSA5LTIwIDIwLTIwdjIwSDB6TTAgNTRjMC0xMSA5LTIwIDIwLTIwdjIwSDB6TTM2IDU0YzAtMTEgOS0yMCAyMC0yMHYyMGgtMjB6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-20" />
-          
-          <div className="relative">
-            <h2 className="mb-4 text-3xl font-bold lg:text-4xl">
-              Ready to Transform Your Business?
-            </h2>
-            <p className="mb-8 text-lg text-muted-foreground">
-              Join thousands of customers, retailers, and wholesalers already trading smarter
-            </p>
+      <section className="py-20">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-4xl font-bold tracking-tight">Ready to Dive In?</h2>
+          <p className="mt-4 text-lg text-muted-foreground">
+            Join the marketplace of the future today.
+          </p>
+          <div className="mt-8">
             <Button asChild size="lg" className="bg-gradient-to-r from-primary to-primary-glow shadow-glow">
-              <Link to="/auth">Create Account</Link>
+              <Link to="/auth">Create Your Account</Link>
             </Button>
           </div>
-        </Card>
+        </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t bg-muted/30 py-8">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2025 Marketplace. Built with ❤️ for modern commerce.</p>
+      <footer className="border-t bg-background">
+        <div className="container mx-auto px-4 py-6 text-center text-muted-foreground">
+          <p>&copy; {new Date().getFullYear()} MarketPlace. All rights reserved.</p>
         </div>
       </footer>
     </div>

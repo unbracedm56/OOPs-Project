@@ -9,7 +9,7 @@ import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import Dashboard from "./pages/Dashboard";
 import RoleSelection from "./pages/RoleSelection";
-import CustomerDashboard from "./pages/CustomerDashboard";
+import CustomerDashboard from "./pages/CustomerDashboardNew";
 import RetailerDashboard from "./pages/RetailerDashboard";
 import WholesalerDashboard from "./pages/WholesalerDashboard";
 import RetailerInventory from "./pages/RetailerInventory";
@@ -38,6 +38,12 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import UserManagement from "./pages/admin/UserManagement";
 import ReviewModeration from "./pages/admin/ReviewModeration";
 import AuditLogs from "./pages/admin/AuditLogs";
+import Categories from "./pages/Categories";
+import TodaysDeals from "./pages/TodaysDeals";
+import NewArrivals from "./pages/NewArrivals";
+import BestSellers from "./pages/BestSellers";
+import CategoryBySlug from "./pages/CategoryBySlug";
+import SearchResults from "./pages/SearchResults";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,7 +77,15 @@ const App = () => (
           <Route path="/profile" element={<Profile />} />
           <Route path="/add-address" element={<AddAddress />} />
           <Route path="/saved-addresses" element={<SavedAddresses />} />
-          <Route path="/category" element={<CategoryPage />} />
+          <Route path="/search" element={<SearchResults />} />
+          <Route path="/categories" element={<Categories />} />
+          <Route path="/category/deals" element={<TodaysDeals />} />
+          <Route path="/category/new-arrivals" element={<NewArrivals />} />
+          <Route path="/category/best-sellers" element={<BestSellers />} />
+          <Route path="/category/electronics" element={<CategoryBySlug />} />
+          <Route path="/category/fashion" element={<CategoryBySlug />} />
+          <Route path="/category/home-kitchen" element={<CategoryBySlug />} />
+          <Route path="/category/:categoryId" element={<CategoryPage />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/contact" element={<ContactUs />} />

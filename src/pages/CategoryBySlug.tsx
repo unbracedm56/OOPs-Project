@@ -5,8 +5,15 @@ import { AmazonHeader, AmazonFooter, AmazonProductCard } from "@/components/amaz
 import { User } from "@supabase/supabase-js";
 import { Layers } from "lucide-react";
 
-const CategoryPage = () => {
-  const { categoryId } = useParams();
+// Map of slug to category name for searching
+const CATEGORY_SLUG_MAP: Record<string, string[]> = {
+  electronics: ["Electronics", "Electronic", "Technology", "Gadgets"],
+  fashion: ["Fashion", "Clothing", "Apparel", "Wear"],
+  "home-kitchen": ["Home", "Kitchen", "Home & Kitchen", "Homeware"],
+};
+
+const CategoryBySlug = () => {
+  const { slug } = useParams();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -21,13 +28,10 @@ const CategoryPage = () => {
   }, []);
 
   useEffect(() => {
-    if (user && categoryId) {
-      fetchCategory();
-      fetchProducts();
-      fetchWishlistCount();
-      fetchCartCount();
+    if (user && slug) {
+      fetchCategoryBySlug();
     }
-  }, [user, categoryId]);
+  }, [user, slug]);
 
   const checkUser = async () => {
     const {
@@ -47,24 +51,36 @@ const CategoryPage = () => {
     }
   };
 
-  const fetchCategory = async () => {
-    if (!categoryId) return;
+  const fetchCategoryBySlug = async () => {
+    if (!slug) return;
 
-    const { data } = await supabase
-      .from("categories")
-      .select("*")
-      .eq("id", categoryId)
-      .single();
+    try {
+      // Try to find category by matching name patterns
+      const searchTerms = CATEGORY_SLUG_MAP[slug] || [slug];
+      
+      // Search for category by name (case insensitive)
+      const { data: categories } = await supabase
+        .from("categories")
+        .select("*")
+        .ilike("name", `%${searchTerms[0]}%`)
+        .limit(1);
 
-    if (data) setCategory(data);
+      if (categories && categories.length > 0) {
+        const foundCategory = categories[0];
+        setCategory(foundCategory);
+        await fetchProductsByCategory(foundCategory.id);
+        fetchWishlistCount();
+        fetchCartCount();
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error("Error fetching category:", error);
+      setLoading(false);
+    }
   };
 
-  const fetchProducts = async () => {
-    if (!categoryId) {
-      setLoading(false);
-      return;
-    }
-
+  const fetchProductsByCategory = async (categoryId: string) => {
     try {
       const { data, error } = await supabase
         .from("inventory")
@@ -152,6 +168,12 @@ const CategoryPage = () => {
     navigate("/");
   };
 
+  const getCategoryDisplayName = () => {
+    if (category?.name) return category.name;
+    if (slug === "home-kitchen") return "Home & Kitchen";
+    return slug?.charAt(0).toUpperCase() + slug?.slice(1);
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -180,7 +202,7 @@ const CategoryPage = () => {
             </div>
             <div>
               <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                {category?.name || "Category"}
+                {getCategoryDisplayName()}
               </h1>
               <p className="text-muted-foreground">
                 {category?.description || "Browse products in this category"}
@@ -229,4 +251,4 @@ const CategoryPage = () => {
   );
 };
 
-export default CategoryPage;
+export default CategoryBySlug;

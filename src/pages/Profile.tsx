@@ -1,39 +1,67 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Trash2, MapPin, CreditCard, Upload, Camera } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { 
+  Package, 
+  User, 
+  MapPin,
+  ChevronRight,
+  Plus,
+  Trash2,
+  Shield,
+  Bell,
+  Globe,
+  HelpCircle,
+  MessageCircle,
+  Lock,
+  Heart
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { AmazonHeader } from "@/components/amazon/AmazonHeader";
+import { AmazonFooter } from "@/components/amazon/AmazonFooter";
 
 const Profile = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [userEmail, setUserEmail] = useState<string>("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [gender, setGender] = useState("male");
+  const [phone, setPhone] = useState("");
+  const [activeSection, setActiveSection] = useState("profile");
+  const [wishlistCount, setWishlistCount] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
   const [addresses, setAddresses] = useState<any[]>([]);
   const [editingAddress, setEditingAddress] = useState<any>(null);
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
-  const [editingPayment, setEditingPayment] = useState<any>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string>("");
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [smsNotifications, setSmsNotifications] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
-  
-  // Get tab from URL params
-  const [searchParams] = useState(() => new URLSearchParams(window.location.search));
-  const defaultTab = searchParams.get("tab") || "profile";
+  const [language, setLanguage] = useState("en");
+  const [currency, setCurrency] = useState("INR");
+  const [timezone, setTimezone] = useState("IST");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  useEffect(() => {
+    // Check for section parameter in URL
+    const section = searchParams.get("section");
+    if (section) {
+      setActiveSection(section);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchProfile();
     fetchAddresses();
-    fetchPaymentMethods();
   }, []);
 
   const fetchProfile = async () => {
@@ -64,6 +92,29 @@ const Profile = () => {
 
       console.log("Profile loaded:", data);
       setProfile(data);
+      
+      // Parse full name into first and last name
+      if (data?.full_name) {
+        const nameParts = data.full_name.split(" ");
+        setFirstName(nameParts[0] || "");
+        setLastName(nameParts.slice(1).join(" ") || "");
+      }
+      
+      if (data?.phone) {
+        setPhone(data.phone);
+      }
+      
+      if (data?.gender) {
+        setGender(data.gender);
+      }
+
+      // Load language preferences
+      if (data?.language) setLanguage(data.language);
+      if (data?.currency) setCurrency(data.currency);
+      if (data?.timezone) setTimezone(data.timezone);
+      if (data?.email_notifications !== undefined) setEmailNotifications(data.email_notifications);
+      if (data?.sms_notifications !== undefined) setSmsNotifications(data.sms_notifications);
+      
       setLoading(false);
     } catch (error) {
       console.error("Profile fetch error:", error);
@@ -71,63 +122,182 @@ const Profile = () => {
     }
   };
 
+  const fetchWishlistCount = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { count } = await supabase
+      .from("wishlist")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    setWishlistCount(count || 0);
+  };
+
+  const fetchCartCount = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: cart } = await supabase
+      .from("cart")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!cart) {
+      setCartCount(0);
+      return;
+    }
+
+    const { data: items } = await supabase
+      .from("cart_items")
+      .select("qty")
+      .eq("cart_id", cart.id);
+
+    const totalQty = items?.reduce((sum, item) => sum + item.qty, 0) || 0;
+    setCartCount(totalQty);
+  };
+
+  useEffect(() => {
+    if (profile) {
+      fetchWishlistCount();
+      fetchCartCount();
+    }
+  }, [profile]);
+
   const fetchAddresses = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data } = await supabase
-      .from("addresses")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("is_default", { ascending: false });
+      const { data, error } = await supabase
+        .from("addresses")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("is_default", { ascending: false });
 
-    setAddresses(data || []);
-  };
-
-  const fetchPaymentMethods = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("saved_payment_methods")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("is_default", { ascending: false });
-
-    setPaymentMethods(data || []);
-  };
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAvatarFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      if (error) throw error;
+      setAddresses(data || []);
+    } catch (error) {
+      console.error("Error fetching addresses:", error);
     }
   };
 
-  const handleAvatarUpload = async () => {
-    if (!avatarFile || !profile?.id) return;
-
-    setUploadingAvatar(true);
+  const handleDeleteAddress = async (id: string) => {
     try {
-      // Delete old avatar if exists
-      if (profile.avatar_url) {
-        const oldPath = profile.avatar_url.split('/').pop();
-        await supabase.storage.from('avatars').remove([`${profile.id}/${oldPath}`]);
+      const { error } = await supabase.from("addresses").delete().eq("id", id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Address deleted",
+      });
+
+      fetchAddresses();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSetDefaultAddress = async (id: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase
+        .from("addresses")
+        .update({ is_default: false })
+        .eq("user_id", user.id);
+
+      const { error } = await supabase
+        .from("addresses")
+        .update({ is_default: true })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Default address updated",
+      });
+
+      fetchAddresses();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: fullName,
+        phone: phone,
+      })
+      .eq("id", profile.id);
+
+    if (error) {
+      toast({
+        title: "Error updating profile",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Profile updated successfully",
+      });
+      fetchProfile();
+    }
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setUploadingAvatar(true);
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload an image file",
+          variant: "destructive",
+        });
+        return;
       }
 
-      // Upload new avatar
-      const fileExt = avatarFile.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${profile.id}/${fileName}`;
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please upload an image smaller than 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
 
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`; // Changed to match RLS policy
+
+      // Upload image to storage
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, avatarFile);
+        .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
@@ -140,21 +310,19 @@ const Profile = () => {
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ avatar_url: publicUrl })
-        .eq('id', profile.id);
+        .eq('id', user.id);
 
       if (updateError) throw updateError;
 
       toast({
-        title: "Success",
-        description: "Avatar updated successfully",
+        title: "Profile picture updated",
+        description: "Your profile picture has been updated successfully",
       });
-      
-      setAvatarFile(null);
-      setAvatarPreview("");
+
       fetchProfile();
     } catch (error: any) {
       toast({
-        title: "Error",
+        title: "Error uploading image",
         description: error.message,
         variant: "destructive",
       });
@@ -163,837 +331,794 @@ const Profile = () => {
     }
   };
 
-  const handleUpdateProfile = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        full_name: formData.get("full_name") as string,
-        phone: formData.get("phone") as string,
-      })
-      .eq("id", profile.id);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Success",
-        description: "Profile updated successfully",
-      });
-      fetchProfile();
-    }
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast({
+      title: "Signed out",
+      description: "You've been successfully signed out.",
+    });
+    navigate("/");
   };
 
-  const handleChangePassword = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const newPassword = formData.get("new_password") as string;
-    const confirmPassword = formData.get("confirm_password") as string;
-
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      toast({
-        title: "Error",
-        description: "Password must be at least 6 characters long",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setChangingPassword(true);
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Password changed successfully",
-      });
-      e.currentTarget.reset();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setChangingPassword(false);
-    }
-  };
-
-  const handleSaveAddress = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    
-    if (!profile?.id) {
-      toast({
-        title: "Error",
-        description: "Profile not loaded. Please refresh the page.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    const formData = new FormData(e.currentTarget);
-
-    console.log("Saving address - profile:", profile);
-    console.log("Form data:", Object.fromEntries(formData.entries()));
-
-    const addressData = {
-      user_id: profile.id,
-      label: formData.get("label") as string || "Address",
-      line1: formData.get("line1") as string,
-      line2: formData.get("line2") as string || null,
-      city: formData.get("city") as string,
-      state: formData.get("state") as string,
-      pincode: formData.get("pincode") as string,
-      country: (formData.get("country") as string) || "India",
-      is_default: formData.get("is_default") === "on",
-    };
-
-    console.log("Address data to save:", addressData);
-
-    let error;
-    if (editingAddress?.id) {
-      console.log("Updating address:", editingAddress.id);
-      ({ error } = await supabase
-        .from("addresses")
-        .update(addressData)
-        .eq("id", editingAddress.id));
-    } else {
-      console.log("Inserting new address");
-      const result = await supabase
-        .from("addresses")
-        .insert(addressData)
-        .select();
-      
-      error = result.error;
-      console.log("Insert result:", result);
-    }
-
-    if (error) {
-      console.error("Address save error:", error);
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Success",
-        description: editingAddress?.id ? "Address updated" : "Address added",
-      });
-      setEditingAddress(null);
-      fetchAddresses();
-    }
-  };
-
-  const handleDeleteAddress = async (id: string) => {
-    const { error } = await supabase
-      .from("addresses")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Success",
-        description: "Address deleted",
-      });
-      fetchAddresses();
-    }
-  };
-
-  const handleSetDefaultAddress = async (id: string) => {
-    // First, unset all defaults
-    await supabase
-      .from("addresses")
-      .update({ is_default: false })
-      .eq("user_id", profile.id);
-
-    // Then set the new default
-    const { error } = await supabase
-      .from("addresses")
-      .update({ is_default: true })
-      .eq("id", id);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Success",
-        description: "Default address updated",
-      });
-      fetchAddresses();
-    }
-  };
-
-  const handleSavePaymentMethod = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-
-    const paymentData = {
-      user_id: profile.id,
-      payment_type: formData.get("payment_type") as string,
-      label: formData.get("label") as string,
-      last_four: formData.get("last_four") as string,
-      card_name: formData.get("card_name") as string || null,
-      expiry_date: formData.get("expiry_date") as string || null,
-      account_number: formData.get("account_number") as string || null,
-      ifsc_code: formData.get("ifsc_code") as string || null,
-      is_default: formData.get("is_default") === "on",
-    };
-
-    let error;
-    if (editingPayment?.id) {
-      ({ error } = await supabase
-        .from("saved_payment_methods")
-        .update(paymentData)
-        .eq("id", editingPayment.id));
-    } else {
-      ({ error } = await supabase
-        .from("saved_payment_methods")
-        .insert(paymentData));
-    }
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Success",
-        description: editingPayment?.id ? "Payment method updated" : "Payment method added",
-      });
-      setEditingPayment(null);
-      fetchPaymentMethods();
-    }
-  };
-
-  const handleDeletePaymentMethod = async (id: string) => {
-    const { error } = await supabase
-      .from("saved_payment_methods")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Success",
-        description: "Payment method deleted",
-      });
-      fetchPaymentMethods();
-    }
-  };
-
-  const handleSetDefaultPaymentMethod = async (id: string) => {
-    // First, unset all defaults
-    await supabase
-      .from("saved_payment_methods")
-      .update({ is_default: false })
-      .eq("user_id", profile.id);
-
-    // Then set the new default
-    const { error } = await supabase
-      .from("saved_payment_methods")
-      .update({ is_default: true })
-      .eq("id", id);
-
-    if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Success",
-        description: "Default payment method updated",
-      });
-      fetchPaymentMethods();
-    }
-  };
+  const sidebarItems = [
+    { id: "orders", label: "MY ORDERS", icon: Package },
+    { id: "profile", label: "Profile Information", icon: User, parent: "ACCOUNT SETTINGS" },
+    { id: "addresses", label: "Manage Addresses", icon: MapPin, parent: "ACCOUNT SETTINGS" },
+    { id: "security", label: "Security Settings", icon: Shield, parent: "SECURITY" },
+    { id: "password", label: "Change Password", icon: Lock, parent: "SECURITY" },
+    { id: "notifications", label: "Notification Preferences", icon: Bell, parent: "PREFERENCES" },
+    { id: "language", label: "Language & Region", icon: Globe, parent: "PREFERENCES" },
+    { id: "wishlist-page", label: "My Wishlist", icon: Heart, parent: "MY ACTIVITIES" },
+    { id: "help", label: "Help Center", icon: HelpCircle, parent: "SUPPORT" },
+    { id: "contact", label: "Contact Us", icon: MessageCircle, parent: "SUPPORT" },
+  ];
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm">
-        <div className="container mx-auto flex items-center gap-4 px-4 py-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-xl font-bold">Profile & Settings</h1>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background flex flex-col">
+      <AmazonHeader
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+        userName={profile?.full_name?.split(" ")[0]}
+        onSignOut={handleSignOut}
+      />
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <Tabs defaultValue={defaultTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="addresses">Addresses</TabsTrigger>
-            <TabsTrigger value="payments">Payment Methods</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="profile" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Profile Picture</CardTitle>
-                <CardDescription>Update your avatar</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-6">
-                  <Avatar className="h-24 w-24">
-                    <AvatarImage src={avatarPreview || profile?.avatar_url} alt={profile?.full_name} />
-                    <AvatarFallback className="text-2xl">
-                      {profile?.full_name?.charAt(0)?.toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
+      <main className="flex-1">
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Sidebar */}
+            <div className="lg:col-span-1">
+              <Card className="overflow-hidden border-2">
+                {/* Enhanced User Info Header */}
+                <div className="relative">
+                  {/* Gradient Background */}
+                  <div className="h-32 bg-gradient-to-br from-primary via-secondary to-accent relative overflow-hidden">
+                    <div className="absolute inset-0 bg-black/5" />
+                  </div>
                   
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="avatar"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleAvatarChange}
-                        className="hidden"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => document.getElementById('avatar')?.click()}
-                      >
-                        <Camera className="mr-2 h-4 w-4" />
-                        Choose Photo
-                      </Button>
-                      {avatarFile && (
-                        <Button
-                          type="button"
-                          onClick={handleAvatarUpload}
-                          disabled={uploadingAvatar}
-                          className="bg-gradient-to-r from-primary to-primary-glow"
+                  {/* Profile Info */}
+                  <div className="px-6 pb-6 -mt-16">
+                    <div className="relative mb-4">
+                      <div className="relative inline-block">
+                        <Avatar className="h-28 w-28 border-4 border-background shadow-2xl ring-2 ring-primary/20">
+                          <AvatarImage src={profile?.avatar_url} alt={profile?.full_name} className="object-cover" />
+                          <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white text-3xl font-bold">
+                            {profile?.full_name?.charAt(0)?.toUpperCase() || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        
+                        {/* Upload Button Overlay */}
+                        <label
+                          htmlFor="avatar-upload"
+                          className="absolute bottom-1 right-1 bg-primary hover:bg-primary/90 text-white rounded-full p-2.5 cursor-pointer shadow-lg transition-all hover:scale-110 hover:shadow-xl border-2 border-background"
+                          title="Change profile picture"
                         >
+                          <input
+                            id="avatar-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleAvatarUpload}
+                            disabled={uploadingAvatar}
+                          />
                           {uploadingAvatar ? (
-                            <>Uploading...</>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                           ) : (
-                            <>
-                              <Upload className="mr-2 h-4 w-4" />
-                              Upload
-                            </>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
                           )}
-                        </Button>
-                      )}
+                        </label>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      JPG, PNG or GIF (max. 5MB)
-                    </p>
+                    
+                    <div className="space-y-1">
+                      <h2 className="text-2xl font-bold text-foreground">
+                        {profile?.full_name || "User"}
+                      </h2>
+                      <p className="text-sm text-muted-foreground flex items-center gap-1">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        {userEmail}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
-                <CardDescription>Update your profile details</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleUpdateProfile} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" value={userEmail} disabled className="bg-muted" />
-                    <p className="text-xs text-muted-foreground">Email cannot be changed</p>
-                  </div>
+                <div className="border-t" />
 
-                  <div className="space-y-2">
-                    <Label htmlFor="full_name">Full Name</Label>
-                    <Input
-                      id="full_name"
-                      name="full_name"
-                      defaultValue={profile?.full_name}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      defaultValue={profile?.phone}
-                    />
-                  </div>
-
-                  <Button type="submit" className="bg-gradient-to-r from-primary to-primary-glow">
-                    Save Changes
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Change Password</CardTitle>
-                <CardDescription>Update your account password</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleChangePassword} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="new_password">New Password</Label>
-                    <Input
-                      id="new_password"
-                      name="new_password"
-                      type="password"
-                      placeholder="Enter new password"
-                      required
-                      minLength={6}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm_password">Confirm Password</Label>
-                    <Input
-                      id="confirm_password"
-                      name="confirm_password"
-                      type="password"
-                      placeholder="Confirm new password"
-                      required
-                      minLength={6}
-                    />
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    disabled={changingPassword}
-                    className="bg-gradient-to-r from-primary to-primary-glow"
+                {/* Navigation */}
+                <div className="divide-y">
+                  {/* Orders */}
+                  <div
+                    className={`flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors ${
+                      activeSection === "orders" ? "bg-muted" : ""
+                    }`}
+                    onClick={() => {
+                      setActiveSection("orders");
+                      navigate("/orders");
+                    }}
                   >
-                    {changingPassword ? "Changing..." : "Change Password"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                    <div className="flex items-center gap-3">
+                      <Package className="h-5 w-5 text-primary" />
+                      <span className="font-medium text-sm">MY ORDERS</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
 
-          <TabsContent value="addresses" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Delivery Addresses</h3>
-              <Button
-                onClick={() => setEditingAddress({})}
-                className="bg-gradient-to-r from-primary to-primary-glow"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Address
-              </Button>
+                  {/* Account Settings */}
+                  <div>
+                    <div className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <User className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium text-sm text-muted-foreground">ACCOUNT SETTINGS</span>
+                      </div>
+                      <div className="ml-8 space-y-1">
+                        <div
+                          className={`py-2 px-3 -mx-3 cursor-pointer hover:bg-muted/50 rounded transition-colors ${
+                            activeSection === "profile" ? "text-primary font-medium" : "text-foreground"
+                          }`}
+                          onClick={() => setActiveSection("profile")}
+                        >
+                          Profile Information
+                        </div>
+                        <div
+                          className={`py-2 px-3 -mx-3 cursor-pointer hover:bg-muted/50 rounded transition-colors ${
+                            activeSection === "addresses" ? "text-primary font-medium" : "text-foreground"
+                          }`}
+                          onClick={() => setActiveSection("addresses")}
+                        >
+                          Manage Addresses
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Security */}
+                  <div>
+                    <div className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Shield className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium text-sm text-muted-foreground">SECURITY</span>
+                      </div>
+                      <div className="ml-8 space-y-1">
+                        <div
+                          className={`py-2 px-3 -mx-3 cursor-pointer hover:bg-muted/50 rounded transition-colors ${
+                            activeSection === "security" ? "text-primary font-medium" : "text-foreground"
+                          }`}
+                          onClick={() => setActiveSection("security")}
+                        >
+                          Security Settings
+                        </div>
+                        <div
+                          className={`py-2 px-3 -mx-3 cursor-pointer hover:bg-muted/50 rounded transition-colors ${
+                            activeSection === "password" ? "text-primary font-medium" : "text-foreground"
+                          }`}
+                          onClick={() => setActiveSection("password")}
+                        >
+                          Change Password
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preferences */}
+                  <div>
+                    <div className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Bell className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium text-sm text-muted-foreground">PREFERENCES</span>
+                      </div>
+                      <div className="ml-8 space-y-1">
+                        <div
+                          className={`py-2 px-3 -mx-3 cursor-pointer hover:bg-muted/50 rounded transition-colors ${
+                            activeSection === "notifications" ? "text-primary font-medium" : "text-foreground"
+                          }`}
+                          onClick={() => setActiveSection("notifications")}
+                        >
+                          Notification Preferences
+                        </div>
+                        <div
+                          className={`py-2 px-3 -mx-3 cursor-pointer hover:bg-muted/50 rounded transition-colors ${
+                            activeSection === "language" ? "text-primary font-medium" : "text-foreground"
+                          }`}
+                          onClick={() => setActiveSection("language")}
+                        >
+                          Language & Region
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* My Activities */}
+                  <div>
+                    <div className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Heart className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium text-sm text-muted-foreground">MY ACTIVITIES</span>
+                      </div>
+                      <div className="ml-8 space-y-1">
+                        <div
+                          className={`py-2 px-3 -mx-3 cursor-pointer hover:bg-muted/50 rounded transition-colors ${
+                            activeSection === "wishlist-page" ? "text-primary font-medium" : "text-foreground"
+                          }`}
+                          onClick={() => navigate("/wishlist")}
+                        >
+                          My Wishlist
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Support */}
+                  <div>
+                    <div className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <HelpCircle className="h-5 w-5 text-muted-foreground" />
+                        <span className="font-medium text-sm text-muted-foreground">SUPPORT</span>
+                      </div>
+                      <div className="ml-8 space-y-1">
+                        <div
+                          className={`py-2 px-3 -mx-3 cursor-pointer hover:bg-muted/50 rounded transition-colors ${
+                            activeSection === "help" ? "text-primary font-medium" : "text-foreground"
+                          }`}
+                          onClick={() => setActiveSection("help")}
+                        >
+                          Help Center
+                        </div>
+                        <div
+                          className={`py-2 px-3 -mx-3 cursor-pointer hover:bg-muted/50 rounded transition-colors ${
+                            activeSection === "contact" ? "text-primary font-medium" : "text-foreground"
+                          }`}
+                          onClick={() => navigate("/contact")}
+                        >
+                          Contact Us
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
             </div>
 
-            {editingAddress && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>{editingAddress.id ? "Edit Address" : "New Address"}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSaveAddress} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="label">Label (Home, Work, etc.)</Label>
-                      <Input
-                        id="label"
-                        name="label"
-                        defaultValue={editingAddress.label}
-                        placeholder="Home"
-                      />
-                    </div>
+            {/* Main Content */}
+            <div className="lg:col-span-3">
+              {activeSection === "profile" && (
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-1">Personal Information</h2>
+                  <Button 
+                    variant="link" 
+                    className="text-primary p-0 h-auto mb-6"
+                    onClick={() => setActiveSection("edit-profile")}
+                  >
+                    Edit
+                  </Button>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="line1">Address Line 1</Label>
-                      <Input
-                        id="line1"
-                        name="line1"
-                        defaultValue={editingAddress.line1}
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="line2">Address Line 2</Label>
-                      <Input
-                        id="line2"
-                        name="line2"
-                        defaultValue={editingAddress.line2}
-                      />
-                    </div>
-
+                  <form onSubmit={handleUpdateProfile} className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="city">City</Label>
                         <Input
-                          id="city"
-                          name="city"
-                          defaultValue={editingAddress.city}
-                          required
+                          placeholder="First Name"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          className="bg-muted/30"
                         />
                       </div>
-
                       <div className="space-y-2">
-                        <Label htmlFor="state">State</Label>
                         <Input
-                          id="state"
-                          name="state"
-                          defaultValue={editingAddress.state}
-                          required
+                          placeholder="Last Name"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          className="bg-muted/30"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="pincode">Pincode</Label>
-                        <Input
-                          id="pincode"
-                          name="pincode"
-                          defaultValue={editingAddress.pincode}
-                          required
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="country">Country</Label>
-                        <Input
-                          id="country"
-                          name="country"
-                          defaultValue={editingAddress.country || "India"}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="is_default"
-                        name="is_default"
-                        defaultChecked={editingAddress.is_default}
-                        className="rounded"
-                      />
-                      <Label htmlFor="is_default" className="cursor-pointer">
-                        Set as default address
-                      </Label>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button type="submit" className="bg-gradient-to-r from-primary to-primary-glow">
-                        Save Address
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setEditingAddress(null)}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-            )}
-
-            <div className="grid gap-4">
-              {addresses.map((address) => (
-                <Card key={address.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <MapPin className="h-4 w-4 text-primary" />
-                          {address.label && (
-                            <span className="font-semibold">{address.label}</span>
-                          )}
-                          {address.is_default && (
-                            <Badge variant="default">Default</Badge>
-                          )}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-normal text-muted-foreground">Your Gender</Label>
+                      <RadioGroup value={gender} onValueChange={setGender} className="flex gap-6">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="male" id="male" />
+                          <Label htmlFor="male" className="font-normal cursor-pointer">Male</Label>
                         </div>
-                        <p className="text-sm">
-                          {address.line1}
-                          {address.line2 && `, ${address.line2}`}
-                        </p>
-                        <p className="text-sm">
-                          {address.city}, {address.state} - {address.pincode}
-                        </p>
-                        <p className="text-sm text-muted-foreground">{address.country}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        {!address.is_default && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleSetDefaultAddress(address.id)}
-                          >
-                            Set Default
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingAddress(address)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteAddress(address.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="female" id="female" />
+                          <Label htmlFor="female" className="font-normal cursor-pointer">Female</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    <div className="space-y-3 border-t pt-6">
+                      <h3 className="font-semibold">Email Address</h3>
+                      <Button variant="link" className="text-primary p-0 h-auto">Edit</Button>
+                      <Input
+                        type="email"
+                        value={userEmail}
+                        disabled
+                        className="bg-muted/30"
+                      />
+                    </div>
+
+                    <div className="space-y-3 border-t pt-6">
+                      <h3 className="font-semibold">Mobile Number</h3>
+                      <Button variant="link" className="text-primary p-0 h-auto">Edit</Button>
+                      <Input
+                        type="tel"
+                        placeholder="+919346315392"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="bg-muted/30"
+                      />
+                    </div>
+
+                    <div className="border-t pt-6">
+                      <h3 className="font-semibold mb-2">FAQs</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="font-medium text-sm">What happens when I update my email address (or mobile number)?</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Your login email id (or mobile number) changes, likewise. You'll receive all your account related communication on your updated email address (or mobile number).
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {addresses.length === 0 && !editingAddress && (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <p className="text-muted-foreground">No addresses saved yet</p>
-                  </CardContent>
+
+                    <Button 
+                      type="submit"
+                      className="bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover"
+                    >
+                      Save Changes
+                    </Button>
+                  </form>
                 </Card>
               )}
-            </div>
-          </TabsContent>
 
-          <TabsContent value="payments" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Saved Payment Methods</h3>
-              <Button
-                onClick={() => setEditingPayment({})}
-                className="bg-gradient-to-r from-primary to-primary-glow"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Payment Method
-              </Button>
-            </div>
+              {activeSection === "addresses" && (
+                <Card className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-semibold">Manage Addresses</h2>
+                    <Button
+                      onClick={() => navigate("/add-address")}
+                      className="bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add New Address
+                    </Button>
+                  </div>
 
-            {editingPayment && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>{editingPayment.id ? "Edit Payment Method" : "New Payment Method"}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSavePaymentMethod} className="space-y-4">
+                  {addresses.length === 0 ? (
+                    <div className="text-center py-12">
+                      <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground mb-4">No saved addresses yet</p>
+                      <Button onClick={() => navigate("/add-address")} variant="outline">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Your First Address
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {addresses.map((address) => (
+                        <Card key={address.id} className="border-2 hover:border-primary/50 transition-colors">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <MapPin className="h-4 w-4 text-primary" />
+                                  <h3 className="font-semibold">{address.label || "Address"}</h3>
+                                  {address.is_default && (
+                                    <Badge className="bg-gradient-to-r from-primary to-secondary">Default</Badge>
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                  {address.line1}
+                                </p>
+                                {address.line2 && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {address.line2}
+                                  </p>
+                                )}
+                                <p className="text-sm text-muted-foreground">
+                                  {address.city}, {address.state} - {address.pincode}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  {address.country || "India"}
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                {!address.is_default && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleSetDefaultAddress(address.id)}
+                                  >
+                                    Set Default
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDeleteAddress(address.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              )}
+
+              {activeSection === "password" && (
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-6">Change Password</h2>
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const newPassword = formData.get("new_password") as string;
+                    const confirmPassword = formData.get("confirm_password") as string;
+
+                    if (newPassword !== confirmPassword) {
+                      toast({
+                        title: "Error",
+                        description: "Passwords do not match",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    if (newPassword.length < 6) {
+                      toast({
+                        title: "Error",
+                        description: "Password must be at least 6 characters long",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    setChangingPassword(true);
+                    try {
+                      const { error } = await supabase.auth.updateUser({
+                        password: newPassword,
+                      });
+
+                      if (error) throw error;
+
+                      toast({
+                        title: "Success",
+                        description: "Password changed successfully",
+                      });
+                      e.currentTarget.reset();
+                    } catch (error: any) {
+                      toast({
+                        title: "Error",
+                        description: error.message,
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setChangingPassword(false);
+                    }
+                  }} className="space-y-6">
                     <div className="space-y-2">
-                      <Label htmlFor="payment_type">Payment Type</Label>
-                      <select
-                        id="payment_type"
-                        name="payment_type"
-                        defaultValue={editingPayment.payment_type || "card"}
+                      <Label htmlFor="new_password">New Password</Label>
+                      <Input
+                        id="new_password"
+                        name="new_password"
+                        type="password"
+                        placeholder="Enter new password"
                         required
-                        className="w-full rounded-md border border-input bg-background px-3 py-2"
+                        minLength={6}
+                        className="bg-muted/30"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm_password">Confirm Password</Label>
+                      <Input
+                        id="confirm_password"
+                        name="confirm_password"
+                        type="password"
+                        placeholder="Confirm new password"
+                        required
+                        minLength={6}
+                        className="bg-muted/30"
+                      />
+                    </div>
+
+                    <Button 
+                      type="submit"
+                      disabled={changingPassword}
+                      className="bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover"
+                    >
+                      {changingPassword ? "Changing..." : "Change Password"}
+                    </Button>
+                  </form>
+                </Card>
+              )}
+
+              {activeSection === "security" && (
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-6">Security Settings</h2>
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <h3 className="font-semibold">Two-Factor Authentication</h3>
+                        <p className="text-sm text-muted-foreground">Add an extra layer of security to your account</p>
+                      </div>
+                      <Button variant="outline">Enable</Button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <h3 className="font-semibold">Login Sessions</h3>
+                        <p className="text-sm text-muted-foreground">Manage devices where you're currently logged in</p>
+                      </div>
+                      <Button variant="outline">View Sessions</Button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <h3 className="font-semibold">Account Activity</h3>
+                        <p className="text-sm text-muted-foreground">Review recent activity on your account</p>
+                      </div>
+                      <Button variant="outline">View Activity</Button>
+                    </div>
+
+                    <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <h3 className="font-semibold text-destructive mb-2">Delete Account</h3>
+                      <p className="text-sm text-muted-foreground mb-4">Permanently delete your account and all associated data</p>
+                      <Button variant="destructive" size="sm">Delete Account</Button>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {activeSection === "notifications" && (
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-6">Notification Preferences</h2>
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <h3 className="font-semibold">Email Notifications</h3>
+                        <p className="text-sm text-muted-foreground">Receive order updates and promotional emails</p>
+                      </div>
+                      <Button 
+                        variant={emailNotifications ? "default" : "outline"}
+                        onClick={async () => {
+                          const newValue = !emailNotifications;
+                          setEmailNotifications(newValue);
+                          
+                          try {
+                            await supabase
+                              .from("profiles")
+                              .update({ email_notifications: newValue })
+                              .eq("id", profile.id);
+                            
+                            toast({
+                              title: "Updated",
+                              description: `Email notifications ${newValue ? 'enabled' : 'disabled'}`,
+                            });
+                          } catch (error: any) {
+                            toast({
+                              title: "Error",
+                              description: error.message,
+                              variant: "destructive",
+                            });
+                          }
+                        }}
                       >
-                        <option value="card">Credit/Debit Card</option>
-                        <option value="bank">Bank Account</option>
+                        {emailNotifications ? "Enabled" : "Disabled"}
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <h3 className="font-semibold">SMS Notifications</h3>
+                        <p className="text-sm text-muted-foreground">Get text messages for important order updates</p>
+                      </div>
+                      <Button 
+                        variant={smsNotifications ? "default" : "outline"}
+                        onClick={async () => {
+                          const newValue = !smsNotifications;
+                          setSmsNotifications(newValue);
+                          
+                          try {
+                            await supabase
+                              .from("profiles")
+                              .update({ sms_notifications: newValue })
+                              .eq("id", profile.id);
+                            
+                            toast({
+                              title: "Updated",
+                              description: `SMS notifications ${newValue ? 'enabled' : 'disabled'}`,
+                            });
+                          } catch (error: any) {
+                            toast({
+                              title: "Error",
+                              description: error.message,
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
+                        {smsNotifications ? "Enabled" : "Disabled"}
+                      </Button>
+                    </div>
+
+                    <div className="p-4 border rounded-lg">
+                      <h3 className="font-semibold mb-3">Notification Types</h3>
+                      <div className="space-y-3">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input type="checkbox" defaultChecked className="rounded" />
+                          <div>
+                            <p className="font-medium text-sm">Order Updates</p>
+                            <p className="text-xs text-muted-foreground">Get notified about order status changes</p>
+                          </div>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input type="checkbox" defaultChecked className="rounded" />
+                          <div>
+                            <p className="font-medium text-sm">Promotional Offers</p>
+                            <p className="text-xs text-muted-foreground">Receive deals and discounts</p>
+                          </div>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input type="checkbox" className="rounded" />
+                          <div>
+                            <p className="font-medium text-sm">Product Recommendations</p>
+                            <p className="text-xs text-muted-foreground">Get personalized product suggestions</p>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {activeSection === "language" && (
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-6">Language & Region</h2>
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    try {
+                      const { error } = await supabase
+                        .from("profiles")
+                        .update({
+                          language,
+                          currency,
+                          timezone,
+                        })
+                        .eq("id", profile.id);
+
+                      if (error) throw error;
+
+                      toast({
+                        title: "Success",
+                        description: "Language & region preferences saved successfully",
+                      });
+                      fetchProfile();
+                    } catch (error: any) {
+                      toast({
+                        title: "Error",
+                        description: error.message,
+                        variant: "destructive",
+                      });
+                    }
+                  }} className="space-y-6">
+                    <div className="space-y-2">
+                      <Label>Language</Label>
+                      <select 
+                        value={language}
+                        onChange={(e) => setLanguage(e.target.value)}
+                        className="w-full p-2 border rounded-lg bg-muted/30"
+                      >
+                        <option value="en">English</option>
+                        <option value="hi">हिन्दी (Hindi)</option>
+                        <option value="ta">தமிழ் (Tamil)</option>
+                        <option value="te">తెలుగు (Telugu)</option>
+                        <option value="bn">বাংলা (Bengali)</option>
                       </select>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="label">Label (e.g., "My Visa Card")</Label>
-                      <Input
-                        id="label"
-                        name="label"
-                        defaultValue={editingPayment.label}
-                        placeholder="My Primary Card"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="card_name">Cardholder Name / Account Holder Name</Label>
-                      <Input
-                        id="card_name"
-                        name="card_name"
-                        defaultValue={editingPayment.card_name}
-                        placeholder="John Doe"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="last_four">Last 4 Digits</Label>
-                        <Input
-                          id="last_four"
-                          name="last_four"
-                          defaultValue={editingPayment.last_four}
-                          placeholder="1234"
-                          maxLength={4}
-                          required
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="expiry_date">Expiry (MM/YY) - Cards only</Label>
-                        <Input
-                          id="expiry_date"
-                          name="expiry_date"
-                          defaultValue={editingPayment.expiry_date}
-                          placeholder="12/25"
-                          maxLength={5}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="ifsc_code">IFSC Code (Bank only)</Label>
-                      <Input
-                        id="ifsc_code"
-                        name="ifsc_code"
-                        defaultValue={editingPayment.ifsc_code}
-                        placeholder="SBIN0001234"
-                        maxLength={11}
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="is_default"
-                        name="is_default"
-                        defaultChecked={editingPayment.is_default}
-                        className="rounded"
-                      />
-                      <Label htmlFor="is_default" className="cursor-pointer">
-                        Set as default payment method
-                      </Label>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button type="submit" className="bg-gradient-to-r from-primary to-primary-glow">
-                        Save Payment Method
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setEditingPayment(null)}
+                      <Label>Currency</Label>
+                      <select 
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value)}
+                        className="w-full p-2 border rounded-lg bg-muted/30"
                       >
-                        Cancel
-                      </Button>
+                        <option value="INR">₹ INR - Indian Rupee</option>
+                        <option value="USD">$ USD - US Dollar</option>
+                        <option value="EUR">€ EUR - Euro</option>
+                      </select>
                     </div>
-                  </form>
-                </CardContent>
-              </Card>
-            )}
 
-            <div className="grid gap-4">
-              {paymentMethods.map((payment) => (
-                <Card key={payment.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          {payment.payment_type === "card" ? (
-                            <div className="p-2 rounded-lg bg-primary/10">
-                              <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                              </svg>
-                            </div>
-                          ) : (
-                            <div className="p-2 rounded-lg bg-primary/10">
-                              <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                              </svg>
-                            </div>
-                          )}
-                          <span className="font-semibold">{payment.label}</span>
-                          {payment.is_default && (
-                            <Badge variant="default">Default</Badge>
-                          )}
-                        </div>
-                        <p className="text-sm">
-                          {payment.payment_type === "card" ? "Card" : "Bank Account"} ending in •••• {payment.last_four}
-                        </p>
-                        {payment.card_name && (
-                          <p className="text-sm text-muted-foreground">{payment.card_name}</p>
-                        )}
-                        {payment.expiry_date && (
-                          <p className="text-sm text-muted-foreground">Expires {payment.expiry_date}</p>
-                        )}
+                    <div className="space-y-2">
+                      <Label>Time Zone</Label>
+                      <select 
+                        value={timezone}
+                        onChange={(e) => setTimezone(e.target.value)}
+                        className="w-full p-2 border rounded-lg bg-muted/30"
+                      >
+                        <option value="IST">IST - Indian Standard Time (UTC+5:30)</option>
+                        <option value="PST">PST - Pacific Standard Time (UTC-8)</option>
+                        <option value="EST">EST - Eastern Standard Time (UTC-5)</option>
+                      </select>
+                    </div>
+
+                    <Button 
+                      type="submit"
+                      className="bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover"
+                    >
+                      Save Preferences
+                    </Button>
+                  </form>
+                </Card>
+              )}
+
+              {activeSection === "help" && (
+                <Card className="p-6">
+                  <h2 className="text-xl font-semibold mb-6">Help Center</h2>
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 border rounded-lg hover:border-primary transition-colors cursor-pointer">
+                        <h3 className="font-semibold mb-2">📦 Order Issues</h3>
+                        <p className="text-sm text-muted-foreground">Track, modify, or cancel orders</p>
                       </div>
-                      <div className="flex gap-2">
-                        {!payment.is_default && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleSetDefaultPaymentMethod(payment.id)}
-                          >
-                            Set Default
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingPayment(payment)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeletePaymentMethod(payment.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                      <div className="p-4 border rounded-lg hover:border-primary transition-colors cursor-pointer">
+                        <h3 className="font-semibold mb-2">💳 Payment & Refunds</h3>
+                        <p className="text-sm text-muted-foreground">Payment methods and refund policies</p>
+                      </div>
+                      <div className="p-4 border rounded-lg hover:border-primary transition-colors cursor-pointer">
+                        <h3 className="font-semibold mb-2">🚚 Delivery Info</h3>
+                        <p className="text-sm text-muted-foreground">Shipping and delivery details</p>
+                      </div>
+                      <div className="p-4 border rounded-lg hover:border-primary transition-colors cursor-pointer">
+                        <h3 className="font-semibold mb-2">🔐 Account Security</h3>
+                        <p className="text-sm text-muted-foreground">Protect your account</p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {paymentMethods.length === 0 && !editingPayment && (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <p className="text-muted-foreground">No payment methods saved yet</p>
-                  </CardContent>
+
+                    <div className="border-t pt-6">
+                      <h3 className="font-semibold mb-4">Frequently Asked Questions</h3>
+                      <div className="space-y-3">
+                        <details className="p-3 border rounded-lg">
+                          <summary className="font-medium cursor-pointer">How do I track my order?</summary>
+                          <p className="text-sm text-muted-foreground mt-2">Go to "My Orders" section and click on the "Track" button next to your order.</p>
+                        </details>
+                        <details className="p-3 border rounded-lg">
+                          <summary className="font-medium cursor-pointer">What is the return policy?</summary>
+                          <p className="text-sm text-muted-foreground mt-2">You can return most items within 7 days of delivery for a full refund.</p>
+                        </details>
+                        <details className="p-3 border rounded-lg">
+                          <summary className="font-medium cursor-pointer">How do I change my delivery address?</summary>
+                          <p className="text-sm text-muted-foreground mt-2">Visit "Manage Addresses" to add, edit, or remove delivery addresses.</p>
+                        </details>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               )}
             </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
       </main>
+
+      <AmazonFooter />
     </div>
   );
 };
