@@ -59,7 +59,7 @@ export default function RetailerDashboard() {
     if (store) {
       fetchWholesalerProducts();
     }
-  }, [locationFilterEnabled, maxDistance, userLocation]);
+  }, [store, locationFilterEnabled, maxDistance, userLocation, myInventory]);
 
   const checkUser = async () => {
     try {
@@ -94,8 +94,8 @@ export default function RetailerDashboard() {
       setStore(storeData);
       
       if (storeData) {
-        fetchWholesalerProducts();
-        fetchMyInventory(storeData.id);
+        const inventoryData = await fetchMyInventory(storeData.id);
+        await fetchWholesalerProducts(inventoryData);
         fetchCartCount();
       }
       
@@ -106,7 +106,7 @@ export default function RetailerDashboard() {
     }
   };
 
-  const fetchWholesalerProducts = async () => {
+  const fetchWholesalerProducts = async (existingInventory?: any[]) => {
     try {
       // RLS policy automatically filters to show only wholesaler products
       // that are NOT in the retailer's inventory
@@ -124,9 +124,16 @@ export default function RetailerDashboard() {
         .gt("stock_qty", 0);
 
       if (error) throw error;
-      
-      // Filter to only show wholesaler products (extra safety check)
-      const wholesalerOnly = (data || []).filter(item => item.stores?.type === 'wholesaler');
+
+      const ownedInventory = existingInventory ?? myInventory;
+      const ownedProductIds = new Set((ownedInventory || []).map(item => item.product_id));
+
+      // Filter to only show wholesaler products and exclude ones retailer already owns
+      const wholesalerOnly = (data || []).filter(item => {
+        const isWholesaler = item.stores?.type === 'wholesaler';
+        const alreadyOwned = ownedProductIds.has(item.product_id);
+        return isWholesaler && !alreadyOwned;
+      });
       
       // Apply location-based filtering if enabled
       if (locationFilterEnabled && userLocation) {
@@ -157,9 +164,12 @@ export default function RetailerDashboard() {
         .eq("store_id", storeId);
 
       if (error) throw error;
-      setMyInventory(data || []);
+      const result = data || [];
+      setMyInventory(result);
+      return result;
     } catch (error) {
       console.error("Error fetching inventory:", error);
+      return [];
     }
   };
 
@@ -301,13 +311,13 @@ export default function RetailerDashboard() {
             <Package className="mr-2 h-5 w-5" />
             My Products
           </Button>
+          <Button size="lg" variant="outline" onClick={() => navigate("/retailer/proxy-orders")} className="h-20">
+            <ShoppingCart className="mr-2 h-5 w-5" />
+            Wholesaler Orders
+          </Button>
           <Button size="lg" variant="outline" onClick={() => navigate("/view-customers")} className="h-20">
             <Users className="mr-2 h-5 w-5" />
             View Customers
-          </Button>
-          <Button size="lg" variant="outline" onClick={() => navigate("/order-history")} className="h-20">
-            <ShoppingCart className="mr-2 h-5 w-5" />
-            View Orders
           </Button>
         </div>
 

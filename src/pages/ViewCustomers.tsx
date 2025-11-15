@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ArrowLeft, Calendar as CalendarIcon, MapPin } from "lucide-react";
+import { ArrowLeft, Calendar as CalendarIcon, MapPin, Package } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -132,7 +132,29 @@ const ViewCustomers = () => {
 
       if (error) throw error;
 
-      setOrders(ordersData || []);
+      // Fetch proxy order details for orders that need approval
+      const ordersWithProxy = await Promise.all((ordersData || []).map(async (order) => {
+        if (order.needs_proxy_approval) {
+          const { data: proxyOrders } = await supabase
+            .from("proxy_orders")
+            .select(`
+              *,
+              product:products(name, images),
+              wholesaler_order:wholesaler_order_id(
+                id,
+                order_number,
+                status,
+                delivery_date
+              )
+            `)
+            .eq("customer_order_id", order.id);
+          
+          return { ...order, proxy_orders: proxyOrders || [] };
+        }
+        return order;
+      }));
+
+      setOrders(ordersWithProxy || []);
     } catch (error) {
       console.error("Error fetching orders:", error);
       toast({
@@ -157,12 +179,49 @@ const ViewCustomers = () => {
         return;
       }
 
+      // Check if order needs proxy approval first
+      const currentOrder = orders.find(o => o.id === orderId);
+      if (currentOrder?.needs_proxy_approval && !currentOrder?.proxy_approved_at) {
+        toast({
+          title: "Action Required",
+          description: "Please review and approve this order in Wholesaler Orders page before updating status",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Check if this order has proxy orders that haven't been delivered to retailer yet
+      if (currentOrder?.proxy_orders && currentOrder.proxy_orders.length > 0) {
+        const pendingProxyDeliveries = currentOrder.proxy_orders.filter(
+          (p: any) => p.status !== 'delivered_to_retailer' && p.status !== 'completed'
+        );
+        
+        if (pendingProxyDeliveries.length > 0) {
+          const productNames = pendingProxyDeliveries.map((p: any) => p.product?.name).filter(Boolean).join(", ");
+          toast({
+            title: "Cannot Update Order Status",
+            description: `Wait for wholesaler to deliver: ${productNames || 'pending items'}. Check the wholesaler delivery status above.`,
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+
       const { error } = await supabase
         .from("orders")
         .update({ status: newStatus as any })
         .eq("id", orderId);
 
       if (error) throw error;
+
+      // If status is completed, update proxy orders to completed
+      if (newStatus === "delivered") {
+        await supabase
+          .from("proxy_orders")
+          .update({ status: "completed" })
+          .eq("customer_order_id", orderId)
+          .eq("status", "delivered_to_retailer");
+      }
 
       toast({
         title: "Success",
@@ -265,6 +324,11 @@ const ViewCustomers = () => {
                       <Badge variant={getStatusColor(order.status)}>
                         {order.status}
                       </Badge>
+                      {order.needs_proxy_approval && !order.proxy_approved_at && (
+                        <Badge variant="destructive" className="flex items-center gap-1">
+                          ⚠️ Needs Approval
+                        </Badge>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -307,6 +371,62 @@ const ViewCustomers = () => {
                         </div>
                       ))}
                     </div>
+
+                    {/* Proxy Order Status Section - Show wholesaler delivery tracking */}
+                    {order.needs_proxy_approval && order.proxy_approved_at && order.proxy_orders && order.proxy_orders.length > 0 && (
+                      <div className="border-t pt-4">
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Package className="h-5 w-5 text-amber-600" />
+                            <h4 className="font-semibold text-amber-900">Wholesaler Stock Delivery Status</h4>
+                          </div>
+                          <p className="text-sm text-amber-800">
+                            This order requires additional stock from wholesalers. You can only update customer delivery status after receiving all wholesaler deliveries.
+                          </p>
+                          
+                          <div className="space-y-2">
+                            {order.proxy_orders.map((proxy: any, idx: number) => (
+                              <div key={idx} className="bg-white rounded p-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    {proxy.product?.images?.[0] && (
+                                      <img 
+                                        src={proxy.product.images[0]} 
+                                        alt={proxy.product.name}
+                                        className="w-8 h-8 object-cover rounded"
+                                      />
+                                    )}
+                                    <span className="text-sm font-medium">{proxy.product?.name}</span>
+                                  </div>
+                                  <Badge variant={proxy.status === 'delivered_to_retailer' ? 'default' : 'secondary'}>
+                                    {proxy.status === 'delivered_to_retailer' ? '✓ Received' : 'In Transit'}
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Quantity: {proxy.qty} units | Order: {proxy.wholesaler_order?.order_number}
+                                </div>
+                                {proxy.wholesaler_order?.status && (
+                                  <div className="text-xs">
+                                    Wholesaler Status: <span className="font-medium capitalize">{proxy.wholesaler_order.status}</span>
+                                  </div>
+                                )}
+                                {proxy.status !== 'delivered_to_retailer' && (
+                                  <div className="text-xs text-amber-700">
+                                    ⏳ Waiting for wholesaler to deliver to your store
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {order.proxy_orders.some((p: any) => p.status !== 'delivered_to_retailer') && (
+                            <div className="bg-amber-100 border border-amber-300 rounded p-2 text-xs text-amber-900">
+                              <strong>Note:</strong> Customer order status updates are disabled until all wholesaler deliveries are received at your store.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="border-t pt-4 space-y-4">
                       <div className="flex items-center justify-between">

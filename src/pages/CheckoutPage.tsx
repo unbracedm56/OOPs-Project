@@ -68,7 +68,7 @@ const CheckoutPage = () => {
 
       if (!cart) return;
 
-      const { data: items } = await supabase
+      const { data: items, error: itemsError } = await supabase
         .from("cart_items")
         .select(`
           *,
@@ -77,13 +77,22 @@ const CheckoutPage = () => {
             price,
             mrp,
             store_id,
+            stock_qty,
+            delivery_days,
+            product_id,
             products (
+              id,
               name,
               images
             )
           )
         `)
         .eq("cart_id", cart.id);
+
+      if (itemsError) {
+        console.error("Error fetching cart items:", itemsError);
+        throw itemsError;
+      }
 
       if (items) {
         setCartItems(items);
@@ -220,19 +229,61 @@ const CheckoutPage = () => {
 
         if (orderError) throw orderError;
 
-        // Create order items
-        const orderItems = storeItems.map((item) => ({
-          order_id: order.id,
-          inventory_id: item.inventory_id,
-          qty: item.qty,
-          unit_price: item.inventory.price,
-          line_total: item.inventory.price * item.qty,
-          product_snapshot: {
-            name: item.inventory.products.name,
-            images: item.inventory.products.images,
-            price: item.inventory.price,
-          },
-        }));
+        // Create order items (split into retailer stock and proxy stock)
+        const orderItems = [];
+        const proxyOrderData = [];
+        
+        for (const item of storeItems) {
+          const retailerStock = item.inventory.stock_qty;
+          
+          console.log(`📦 Processing item: ${item.inventory.products.name}`);
+          console.log(`   Customer wants: ${item.qty}, Retailer has: ${retailerStock}`);
+          
+          if (item.qty > retailerStock) {
+            console.log(`   ⚠️ PROXY NEEDED: ${item.qty - retailerStock} units short`);
+            // Split: retailer stock + proxy stock
+            // Add retailer stock portion (normal order item)
+            if (retailerStock > 0) {
+              orderItems.push({
+                order_id: order.id,
+                inventory_id: item.inventory_id,
+                qty: retailerStock,
+                unit_price: item.inventory.price,
+                line_total: item.inventory.price * retailerStock,
+                from_proxy_order: false,
+                product_snapshot: {
+                  name: item.inventory.products.name,
+                  images: item.inventory.products.images,
+                  price: item.inventory.price,
+                },
+              });
+            }
+            
+            // Store proxy order info to create later
+            const neededFromWholesaler = item.qty - retailerStock;
+            proxyOrderData.push({
+              item,
+              neededQty: neededFromWholesaler,
+              storeId
+            });
+            
+          } else {
+            // Normal order item (all from retailer stock)
+            orderItems.push({
+              order_id: order.id,
+              inventory_id: item.inventory_id,
+              qty: item.qty,
+              unit_price: item.inventory.price,
+              line_total: item.inventory.price * item.qty,
+              from_proxy_order: false,
+              product_snapshot: {
+                name: item.inventory.products.name,
+                images: item.inventory.products.images,
+                price: item.inventory.price,
+              },
+            });
+          }
+        }
 
         const { error: itemsError } = await supabase
           .from("order_items")
@@ -240,7 +291,121 @@ const CheckoutPage = () => {
 
         if (itemsError) throw itemsError;
 
-        // Inventory reduction is now handled by database trigger
+        // Store proxy order requirements for retailer approval (don't create proxy orders yet)
+        if (proxyOrderData.length > 0) {
+          const proxyRequirements = [];
+          
+          for (const proxyData of proxyOrderData) {
+            const { item, neededQty, storeId } = proxyData;
+            
+            // Strategy 1: Try to find the wholesaler from purchase history
+            const { data: purchaseHistory } = await supabase
+              .from("purchased_product_tracking")
+              .select(`
+                *,
+                source_order:source_order_id(
+                  store_id,
+                  store:stores!inner(id, name, type)
+                )
+              `)
+              .eq("retailer_store_id", storeId)
+              .eq("product_id", item.inventory.product_id)
+              .limit(1)
+              .maybeSingle();
+            
+            let wholesalerInv = null;
+            
+            // If found purchase history, try that wholesaler first
+            if (purchaseHistory?.source_order?.store_id) {
+              const { data } = await supabase
+                .from("inventory")
+                .select(`
+                  *,
+                  product:products!inner(id, name),
+                  store:stores!inner(id, name, type)
+                `)
+                .eq("store_id", purchaseHistory.source_order.store_id)
+                .eq("products.name", item.inventory.products.name)
+                .eq("is_active", true)
+                .gte("stock_qty", neededQty)
+                .limit(1)
+                .maybeSingle();
+              
+              wholesalerInv = data;
+            }
+            
+            // Strategy 2: If not found, search any wholesaler with matching product name
+            if (!wholesalerInv) {
+              const { data } = await supabase
+                .from("inventory")
+                .select(`
+                  *,
+                  product:products!inner(id, name),
+                  store:stores!inner(id, name, type)
+                `)
+                .eq("products.name", item.inventory.products.name)
+                .eq("stores.type", "wholesaler")
+                .eq("is_active", true)
+                .gte("stock_qty", neededQty)
+                .order("stock_qty", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              
+              wholesalerInv = data;
+            }
+            
+            if (wholesalerInv) {
+              const wholesalerDeliveryDays = wholesalerInv.delivery_days || 3;
+              const retailerDeliveryDays = item.inventory.delivery_days || 3;
+              
+              // Store requirement for retailer approval
+              proxyRequirements.push({
+                product_id: wholesalerInv.product.id,
+                product_name: item.inventory.products.name,
+                product_image: item.inventory.products.images?.[0] || null,
+                inventory_id: wholesalerInv.id,
+                wholesaler_store_id: wholesalerInv.store.id,
+                wholesaler_name: wholesalerInv.store.name,
+                quantity: neededQty,  // Changed from qty to quantity
+                qty: neededQty,  // Keep both for compatibility
+                unit_price: wholesalerInv.price,
+                total: wholesalerInv.price * neededQty,
+                wholesaler_delivery_days: wholesalerDeliveryDays,
+                retailer_delivery_days: retailerDeliveryDays,
+                delivery_days: wholesalerDeliveryDays,  // Add for UI display
+                customer_pays: item.inventory.price * neededQty
+              });
+              
+              console.log(`📋 Proxy requirement stored: ${neededQty} units of ${item.inventory.products.name}`);
+            } else {
+              console.warn(`⚠️ No wholesaler found with ${neededQty} units for ${item.inventory.products.name}`);
+            }
+          }
+          
+          // Mark order as needing proxy approval
+          if (proxyRequirements.length > 0) {
+            console.log(`🔄 Updating order ${order.id} with proxy requirements:`, proxyRequirements);
+            
+            const { error: updateError } = await supabase
+              .from("orders")
+              .update({
+                needs_proxy_approval: true,
+                proxy_order_data: proxyRequirements
+              })
+              .eq("id", order.id);
+            
+            if (updateError) {
+              console.error("❌ Error updating order with proxy data:", updateError);
+              throw updateError;
+            }
+            
+            console.log(`✅ Order ${order.id} marked for retailer proxy approval with ${proxyRequirements.length} items`);
+          } else {
+            console.log(`ℹ️ No valid wholesalers found, order will not require proxy approval`);
+          }
+        }
+
+        // Inventory reduction for retailer stock is handled by database trigger
       }
 
       // Clear cart

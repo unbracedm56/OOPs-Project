@@ -177,10 +177,14 @@ export default function WholesalerDashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Button size="lg" onClick={() => navigate("/wholesaler/inventory")} className="h-20">
             <Package className="mr-2 h-5 w-5" />
             Manage Inventory
+          </Button>
+          <Button size="lg" variant="outline" onClick={() => navigate("/wholesaler/proxy-orders")} className="h-20">
+            <ShoppingCart className="mr-2 h-5 w-5" />
+            Retailer Orders
           </Button>
           <Button size="lg" variant="outline" onClick={() => navigate("/view-retailers")} className="h-20">
             <Users className="mr-2 h-5 w-5" />
@@ -188,7 +192,7 @@ export default function WholesalerDashboard() {
           </Button>
           <Button size="lg" variant="outline" onClick={() => navigate("/order-history")} className="h-20">
             <ShoppingCart className="mr-2 h-5 w-5" />
-            View Orders
+            Customer Orders
           </Button>
         </div>
 

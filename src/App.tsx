@@ -14,7 +14,9 @@ import RetailerDashboard from "./pages/RetailerDashboard";
 import WholesalerDashboard from "./pages/WholesalerDashboard";
 import RetailerInventory from "./pages/RetailerInventory";
 import RetailerPurchasedProducts from "./pages/RetailerPurchasedProducts";
+import RetailerProxyOrders from "./pages/RetailerProxyOrders";
 import WholesalerInventory from "./pages/WholesalerInventory";
+import WholesalerProxyOrders from "./pages/WholesalerProxyOrders";
 import ProductDetail from "./pages/ProductDetail";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -62,7 +64,9 @@ const App = () => (
           <Route path="/wholesaler-dashboard" element={<WholesalerDashboard />} />
           <Route path="/retailer/inventory" element={<RetailerInventory />} />
           <Route path="/retailer/products" element={<RetailerPurchasedProducts />} />
+          <Route path="/retailer/proxy-orders" element={<RetailerProxyOrders />} />
           <Route path="/wholesaler/inventory" element={<WholesalerInventory />} />
+          <Route path="/wholesaler/proxy-orders" element={<WholesalerProxyOrders />} />
           <Route path="/product/:slug" element={<ProductDetail />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/add-address" element={<AddAddress />} />

@@ -22,6 +22,7 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [inWishlist, setInWishlist] = useState(false);
   const [estimatedDelivery, setEstimatedDelivery] = useState("");
+  const [wholesalerStock, setWholesalerStock] = useState<any>(null); // Track wholesaler source stock
 
   useEffect(() => {
     fetchProduct();
@@ -44,21 +45,134 @@ const ProductDetail = () => {
       return;
     }
 
-    const { data: inventoryData } = await supabase
-      .from("inventory")
-      .select(`
-        *,
-        store:stores(id, name, phone)
-      `)
-      .eq("product_id", productData.id)
-      .eq("is_active", true)
-      .gt("stock_qty", 0);
+    // Check user role to determine what inventory to show
+    const { data: { user } } = await supabase.auth.getUser();
+    let userRole = null;
+    
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      
+      userRole = profile?.role;
+      console.log("👤 User role:", userRole);
+    }
+
+    let inventoryData = null;
+
+    // CUSTOMERS and non-logged in users see RETAILER inventory
+    if (userRole === 'customer' || !userRole) {
+      console.log("🛒 Fetching RETAILER inventory for customer view");
+      
+      const { data } = await supabase
+        .from("inventory")
+        .select(`
+          *,
+          store:stores!inner(id, name, phone, type, owner_id)
+        `)
+        .eq("product_id", productData.id)
+        .eq("stores.type", "retailer")
+        .eq("is_active", true)
+        .gt("stock_qty", 0);
+      
+      inventoryData = data;
+    } 
+    // RETAILERS see WHOLESALER inventory
+    else if (userRole === 'retailer') {
+      console.log("🏪 Fetching WHOLESALER inventory for retailer view");
+      
+      const { data } = await supabase
+        .from("inventory")
+        .select(`
+          *,
+          store:stores!inner(id, name, phone, type, owner_id)
+        `)
+        .eq("product_id", productData.id)
+        .eq("stores.type", "wholesaler")
+        .eq("is_active", true)
+        .gt("stock_qty", 0);
+      
+      inventoryData = data;
+    }
+    // WHOLESALERS and ADMINS see ALL inventory (or retailer inventory)
+    else {
+      console.log("👥 Fetching inventory for", userRole);
+      
+      const { data } = await supabase
+        .from("inventory")
+        .select(`
+          *,
+          store:stores!inner(id, name, phone, type, owner_id)
+        `)
+        .eq("product_id", productData.id)
+        .eq("is_active", true)
+        .gt("stock_qty", 0);
+      
+      inventoryData = data;
+    }
 
     setProduct(productData);
     setInventory(inventoryData || []);
+    
     if (inventoryData && inventoryData.length > 0) {
       setSelectedInventory(inventoryData[0]);
+      
+      // ONLY fetch wholesaler stock for PROXY SYSTEM (customers only)
+      if (userRole === 'customer' || !userRole) {
+        const retailerStoreId = inventoryData[0].store.id;
+        const retailerProductId = inventoryData[0].product_id;
+        console.log("🔍 [PROXY SYSTEM] Looking for wholesaler backup for product:", productData.name);
+        console.log("📍 Retailer store ID:", retailerStoreId, "| Product ID:", retailerProductId);
+        
+        // Find wholesaler with same product name (simple search, no purchase history needed)
+        const { data: wholesalerInv, error: wholesalerError } = await supabase
+          .from("inventory")
+          .select(`
+            *,
+            product:products(id, name),
+            store:stores(id, name, phone, type)
+          `)
+          .gt("stock_qty", 0);
+        
+        if (wholesalerError) {
+          console.error("❌ Error fetching inventory:", wholesalerError);
+        } else {
+          console.log("📦 Total inventory items found:", wholesalerInv?.length);
+          
+          // Filter for wholesalers only
+          const wholesalers = wholesalerInv?.filter(inv => inv.store?.type === "wholesaler");
+          console.log("🏭 Total wholesaler inventory:", wholesalers?.length);
+          
+          // Find wholesaler with matching product name (case-insensitive)
+          const matchingWholesaler = wholesalers?.find(inv => 
+            inv.product?.name?.toLowerCase().trim() === productData.name.toLowerCase().trim()
+          );
+          
+          if (matchingWholesaler) {
+            setWholesalerStock(matchingWholesaler);
+            console.log("✅ Found wholesaler stock:", {
+              store: matchingWholesaler.store.name,
+              product: matchingWholesaler.product.name,
+              stock: matchingWholesaler.stock_qty,
+              price: matchingWholesaler.price
+            });
+          } else {
+            console.log("⚠️ No wholesaler stock found for product:", productData.name);
+            if (wholesalers && wholesalers.length > 0) {
+              console.log("🔍 Available wholesaler products:", wholesalers.map(w => w.product?.name));
+            } else {
+              console.log("⚠️ No wholesaler inventory exists in database");
+            }
+          }
+        }
+      } else {
+        console.log("👤 User is", userRole, "- no proxy system");
+        setWholesalerStock(null);
+      }
     }
+    
     setLoading(false);
   };
 
@@ -290,6 +404,11 @@ const ProductDetail = () => {
                     <Badge variant={selectedInventory.stock_qty > 10 ? "default" : "secondary"}>
                       {selectedInventory.stock_qty > 10 ? "In Stock" : `Only ${selectedInventory.stock_qty} left`}
                     </Badge>
+                    {wholesalerStock && wholesalerStock.stock_qty > 0 && (
+                      <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                        +{wholesalerStock.stock_qty} available via wholesaler
+                      </Badge>
+                    )}
                   </div>
 
                   {estimatedDelivery && (
@@ -331,26 +450,64 @@ const ProductDetail = () => {
               </Card>
             )}
 
-            <div className="flex gap-2">
-              <div className="flex items-center border rounded">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  disabled={quantity <= 1}
-                >
-                  -
-                </Button>
-                <span className="px-4 py-2 min-w-[3rem] text-center">{quantity}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setQuantity(Math.min(selectedInventory?.stock_qty || 1, quantity + 1))}
-                  disabled={quantity >= (selectedInventory?.stock_qty || 1)}
-                >
-                  +
-                </Button>
+            <div className="space-y-3">
+              <div className="flex gap-2 items-center">
+                <div className="flex items-center border rounded-md bg-white dark:bg-gray-900">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    disabled={quantity <= 1}
+                    className="h-10 px-3"
+                  >
+                    -
+                  </Button>
+                  <input
+                    type="number"
+                    min="1"
+                    max={wholesalerStock ? (selectedInventory?.stock_qty || 0) + (wholesalerStock?.stock_qty || 0) : selectedInventory?.stock_qty}
+                    value={quantity}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      const maxStock = selectedInventory?.stock_qty || 1;
+                      const wholesalerAvailable = wholesalerStock?.stock_qty || 0;
+                      const totalAvailable = maxStock + wholesalerAvailable;
+                      setQuantity(Math.max(1, Math.min(totalAvailable, val)));
+                    }}
+                    className="w-20 h-10 px-3 py-2 text-center border-0 focus:outline-none focus:ring-0 bg-transparent font-medium"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const maxStock = selectedInventory?.stock_qty || 1;
+                      const wholesalerAvailable = wholesalerStock?.stock_qty || 0;
+                      const totalAvailable = maxStock + wholesalerAvailable;
+                      setQuantity(Math.min(totalAvailable, quantity + 1));
+                    }}
+                    disabled={quantity >= ((selectedInventory?.stock_qty || 0) + (wholesalerStock?.stock_qty || 0))}
+                    className="h-10 px-3"
+                  >
+                    +
+                  </Button>
+                </div>
+                {wholesalerStock && quantity > (selectedInventory?.stock_qty || 0) && (
+                  <p className="text-sm text-orange-600 flex items-center gap-1 font-medium">
+                    <Package className="h-4 w-4" />
+                    {quantity - (selectedInventory?.stock_qty || 0)} units will be sourced from wholesaler
+                  </p>
+                )}
               </div>
+              
+              {wholesalerStock && (
+                <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 p-3 rounded-md">
+                  <p className="text-sm text-orange-800 dark:text-orange-200">
+                    💡 <strong>Good news!</strong> You can order up to <strong>{(selectedInventory?.stock_qty || 0) + (wholesalerStock?.stock_qty || 0)} units</strong>
+                    <br />
+                    <span className="text-xs">Retailer has {selectedInventory?.stock_qty}, additional stock available from wholesaler</span>
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3">
