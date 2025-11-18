@@ -44,6 +44,7 @@ import NewArrivals from "./pages/NewArrivals";
 import BestSellers from "./pages/BestSellers";
 import CategoryBySlug from "./pages/CategoryBySlug";
 import SearchResults from "./pages/SearchResults";
+import Notifications from "./pages/Notifications";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +95,7 @@ const App = () => (
           <Route path="/order-success" element={<OrderSuccess />} />
           <Route path="/payment-failed" element={<PaymentFailed />} />
           <Route path="/wishlist" element={<Wishlist />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/import-products" element={<ImportProducts />} />
           <Route path="/view-customers" element={<ViewCustomers />} />
           <Route path="/view-retailers" element={<ViewRetailers />} />

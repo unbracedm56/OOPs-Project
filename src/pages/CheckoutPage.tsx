@@ -26,13 +26,35 @@ const CheckoutPage = () => {
   const [useNewPayment, setUseNewPayment] = useState(false);
   const [estimatedDelivery, setEstimatedDelivery] = useState("");
   const [useLiveLocation, setUseLiveLocation] = useState(false);
+  const [userRole, setUserRole] = useState("");
 
   useEffect(() => {
-    fetchAddresses();
-    fetchCart();
-    fetchSavedPaymentMethods();
-    calculateDelivery();
+    checkRoleAndFetchData();
   }, []);
+
+  const checkRoleAndFetchData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate("/auth");
+        return;
+      }
+
+      // Check user role
+      const { data: role } = await supabase.rpc('get_user_role', {
+        _user_id: user.id
+      });
+
+      setUserRole(role || "customer");
+      fetchAddresses();
+      fetchCart();
+      fetchSavedPaymentMethods();
+      calculateDelivery();
+    } catch (error) {
+      console.error("Error checking role:", error);
+      navigate("/auth");
+    }
+  };
 
   const fetchAddresses = async () => {
     try {

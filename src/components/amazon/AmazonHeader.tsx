@@ -1,10 +1,10 @@
-import { Search, ShoppingCart, MapPin, Menu, Heart, User, Bell, Package, Navigation, Plus } from "lucide-react";
+import { Search, ShoppingCart, MapPin, Menu, Heart, User, Bell, Package, Navigation, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { Card } from "@/components/ui/card";
 
 interface AmazonHeaderProps {
   cartCount?: number;
@@ -37,10 +38,48 @@ export const AmazonHeader = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<any>(null);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
     fetchCategoryIds();
     fetchSavedAddresses();
+    fetchNotificationCount();
+    
+    // Click outside handler for autocomplete
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Subscribe to real-time notification updates
+    const channel = supabase
+      .channel("notifications-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+        },
+        () => fetchNotificationCount()
+      )
+      .subscribe();
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      supabase.removeChannel(channel);
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
   }, []);
 
   const fetchSavedAddresses = async () => {
@@ -127,6 +166,92 @@ export const AmazonHeader = ({
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      setShowSuggestions(false);
+    }
+  };
+
+  const fetchSuggestions = async (query: string) => {
+    if (!query.trim() || query.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const searchPattern = `%${query}%`;
+      
+      const { data: products, error } = await supabase
+        .from("products")
+        .select("id, name, brand, images")
+        .or(`name.ilike.${searchPattern},brand.ilike.${searchPattern},description.ilike.${searchPattern}`)
+        .limit(6);
+
+      if (error) throw error;
+      
+      setSuggestions(products || []);
+      setShowSuggestions(true);
+    } catch (error) {
+      console.error("Error fetching suggestions:", error);
+      setSuggestions([]);
+      setShowSuggestions(false);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+
+    // Clear previous timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set new timer for debounced search
+    debounceTimerRef.current = setTimeout(() => {
+      fetchSuggestions(value);
+    }, 300); // 300ms debounce
+  };
+
+  const handleSuggestionClick = (productId: string) => {
+    navigate(`/product/${productId}`);
+    setShowSuggestions(false);
+    setSearchQuery("");
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  const fetchNotificationCount = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { count, error } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
+
+    if (!error) {
+      setNotificationCount(count || 0);
+    }
+  };
+
+  const extractFirstImage = (images: string | null): string => {
+    if (!images) return "/placeholder.svg";
+    
+    try {
+      const imageArray = JSON.parse(images);
+      return Array.isArray(imageArray) && imageArray.length > 0
+        ? imageArray[0]
+        : "/placeholder.svg";
+    } catch {
+      return images || "/placeholder.svg";
     }
   };
 
@@ -152,17 +277,89 @@ export const AmazonHeader = ({
           </div>
 
           {/* Search Bar - Center */}
-          <div className="flex-1 max-w-2xl mx-4">
+          <div className="flex-1 max-w-2xl mx-4" ref={searchRef}>
             <form onSubmit={handleSearch}>
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                 <Input
                   type="text"
                   placeholder="Search products, brands, and more..."
-                  className="pl-10 pr-4 h-11 rounded-full border-2 focus-visible:ring-primary"
+                  className="pl-10 pr-10 h-11 rounded-full border-2 focus-visible:ring-primary"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={handleSearchInputChange}
+                  onFocus={() => {
+                    if (suggestions.length > 0) setShowSuggestions(true);
+                  }}
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 hover:bg-muted rounded-full p-1 z-10"
+                  >
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                )}
+
+                {/* Autocomplete Dropdown */}
+                {showSuggestions && (
+                  <Card className="absolute top-full left-0 right-0 mt-2 max-h-96 overflow-y-auto shadow-lg z-50">
+                    {isSearching ? (
+                      <div className="p-4 text-center text-muted-foreground">
+                        Searching...
+                      </div>
+                    ) : suggestions.length > 0 ? (
+                      <div className="py-2">
+                        {suggestions.map((product) => (
+                          <div
+                            key={product.id}
+                            onClick={() => handleSuggestionClick(product.id)}
+                            className="flex items-center gap-3 p-3 hover:bg-muted cursor-pointer transition-colors"
+                          >
+                            {product.images ? (
+                              <img
+                                src={extractFirstImage(product.images)}
+                                alt={product.name}
+                                className="w-12 h-12 object-cover rounded border"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-muted rounded border flex items-center justify-center">
+                                <Package className="h-6 w-6 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium truncate">{product.name}</div>
+                              {product.brand && (
+                                <div className="text-sm text-muted-foreground truncate">
+                                  {product.brand}
+                                </div>
+                              )}
+                            </div>
+                            <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          </div>
+                        ))}
+                        {searchQuery.trim() && (
+                          <>
+                            <div className="border-t my-2"></div>
+                            <div
+                              onClick={() => {
+                                handleSearch({ preventDefault: () => {} } as React.FormEvent);
+                              }}
+                              className="flex items-center gap-3 p-3 hover:bg-muted cursor-pointer transition-colors text-primary font-medium"
+                            >
+                              <Search className="h-4 w-4" />
+                              <span>See all results for "{searchQuery}"</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-4 text-center text-muted-foreground">
+                        No products found
+                      </div>
+                    )}
+                  </Card>
+                )}
               </div>
             </form>
           </div>
@@ -257,11 +454,14 @@ export const AmazonHeader = ({
               variant="ghost"
               size="icon"
               className="relative hover:bg-muted"
+              onClick={() => navigate("/notifications")}
             >
               <Bell className="h-5 w-5" />
-              <Badge className="absolute -top-1 -right-1 h-5 min-w-5 flex items-center justify-center bg-accent text-white text-xs px-1">
-                3
-              </Badge>
+              {notificationCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 min-w-5 flex items-center justify-center bg-accent text-white text-xs px-1">
+                  {notificationCount}
+                </Badge>
+              )}
             </Button>
 
             {/* Wishlist */}

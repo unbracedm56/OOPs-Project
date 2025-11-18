@@ -83,23 +83,97 @@ export default function SearchResults() {
   const searchProducts = async () => {
     setLoading(true);
     try {
-      // First, search for products by name, description, and ID
-      const { data: productsData, error: productsError } = await supabase
+      // Check if search query is a valid UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isUUID = uuidRegex.test(searchQuery);
+
+      // Split search query into words for better fuzzy matching
+      const searchWords = searchQuery.trim().toLowerCase().split(/\s+/);
+      
+      // Build the search filter for exact and partial matches
+      const searchPattern = `%${searchQuery}%`;
+      let searchFilter = `name.ilike.${searchPattern},description.ilike.${searchPattern},brand.ilike.${searchPattern}`;
+      if (isUUID) {
+        searchFilter += `,id.eq.${searchQuery}`;
+      }
+
+      // First pass: Exact and partial matches with original query
+      const { data: exactMatches, error: exactError } = await supabase
         .from("products")
         .select("id, name, slug, description, images, brand, category_id")
-        .or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,id.eq.${searchQuery}`)
+        .or(searchFilter)
         .limit(50);
 
-      if (productsError) throw productsError;
+      if (exactError) throw exactError;
 
-      if (!productsData || productsData.length === 0) {
+      let allProductsData = exactMatches || [];
+
+      // Second pass: Fuzzy matching for individual words if we have few results
+      if (allProductsData.length < 10 && searchWords.length > 0) {
+        // Build OR conditions for each word
+        const wordFilters = searchWords
+          .map(word => {
+            const wordPattern = `%${word}%`;
+            return `name.ilike.${wordPattern},description.ilike.${wordPattern},brand.ilike.${wordPattern}`;
+          })
+          .join(',');
+
+        const { data: fuzzyMatches, error: fuzzyError } = await supabase
+          .from("products")
+          .select("id, name, slug, description, images, brand, category_id")
+          .or(wordFilters)
+          .limit(50);
+
+        if (!fuzzyError && fuzzyMatches) {
+          // Merge results, avoiding duplicates
+          const existingIds = new Set(allProductsData.map(p => p.id));
+          const newMatches = fuzzyMatches.filter(p => !existingIds.has(p.id));
+          allProductsData = [...allProductsData, ...newMatches];
+        }
+      }
+
+      if (allProductsData.length === 0) {
         setProducts([]);
         setLoading(false);
         return;
       }
 
+      // Calculate relevance scores for sorting
+      const scoredProducts = allProductsData.map(product => {
+        let score = 0;
+        const lowerQuery = searchQuery.toLowerCase();
+        const lowerName = (product.name || "").toLowerCase();
+        const lowerBrand = (product.brand || "").toLowerCase();
+        const lowerDesc = (product.description || "").toLowerCase();
+
+        // Exact name match gets highest score
+        if (lowerName === lowerQuery) score += 100;
+        // Name starts with query
+        else if (lowerName.startsWith(lowerQuery)) score += 80;
+        // Name contains query
+        else if (lowerName.includes(lowerQuery)) score += 60;
+        
+        // Brand matching
+        if (lowerBrand === lowerQuery) score += 50;
+        else if (lowerBrand.includes(lowerQuery)) score += 30;
+        
+        // Description matching
+        if (lowerDesc.includes(lowerQuery)) score += 20;
+
+        // Word-by-word matching bonus
+        searchWords.forEach(word => {
+          if (lowerName.includes(word)) score += 10;
+          if (lowerBrand.includes(word)) score += 5;
+        });
+
+        return { ...product, relevanceScore: score };
+      });
+
+      // Sort by relevance score (highest first)
+      scoredProducts.sort((a, b) => b.relevanceScore - a.relevanceScore);
+
       // Get product IDs
-      const productIds = productsData.map(p => p.id);
+      const productIds = scoredProducts.map(p => p.id);
 
       // Now get inventory for these products
       const { data: inventoryData, error: inventoryError } = await supabase
@@ -118,15 +192,23 @@ export default function SearchResults() {
 
       if (inventoryError) throw inventoryError;
 
-      // Combine products with their inventory
-      const combinedData = (inventoryData || []).map(inv => ({
-        id: inv.id,
-        price: inv.price,
-        mrp: inv.mrp,
-        stock_qty: inv.stock_qty,
-        is_active: inv.is_active,
-        products: productsData.find(p => p.id === inv.product_id) || null
-      })).filter(item => item.products !== null);
+      // Combine products with their inventory, maintaining relevance order
+      const productMap = new Map(scoredProducts.map(p => [p.id, p]));
+      const combinedData = (inventoryData || [])
+        .map(inv => {
+          const product = productMap.get(inv.product_id);
+          return product ? {
+            id: inv.id,
+            price: inv.price,
+            mrp: inv.mrp,
+            stock_qty: inv.stock_qty,
+            is_active: inv.is_active,
+            products: product,
+            relevanceScore: product.relevanceScore
+          } : null;
+        })
+        .filter(item => item !== null)
+        .sort((a, b) => (b?.relevanceScore || 0) - (a?.relevanceScore || 0));
 
       console.log("Search results:", combinedData); // Debug log
       setProducts(combinedData);

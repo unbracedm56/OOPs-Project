@@ -50,6 +50,7 @@ const Profile = () => {
   const [currency, setCurrency] = useState("INR");
   const [timezone, setTimezone] = useState("IST");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [userRole, setUserRole] = useState("");
 
   useEffect(() => {
     // Check for section parameter in URL
@@ -60,9 +61,30 @@ const Profile = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    fetchProfile();
-    fetchAddresses();
+    checkRoleAndFetchData();
   }, []);
+
+  const checkRoleAndFetchData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate("/auth");
+        return;
+      }
+
+      // Check user role
+      const { data: role } = await supabase.rpc('get_user_role', {
+        _user_id: user.id
+      });
+
+      setUserRole(role || "customer");
+      fetchProfile();
+      fetchAddresses();
+    } catch (error) {
+      console.error("Error checking role:", error);
+      navigate("/auth");
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -366,12 +388,14 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <AmazonHeader
-        cartCount={cartCount}
-        wishlistCount={wishlistCount}
-        userName={profile?.full_name?.split(" ")[0]}
-        onSignOut={handleSignOut}
-      />
+      {userRole === "customer" && (
+        <AmazonHeader
+          cartCount={cartCount}
+          wishlistCount={wishlistCount}
+          userName={profile?.full_name?.split(" ")[0]}
+          onSignOut={handleSignOut}
+        />
+      )}
 
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8">
@@ -1118,7 +1142,7 @@ const Profile = () => {
         </div>
       </main>
 
-      <AmazonFooter />
+      {userRole === "customer" && <AmazonFooter />}
     </div>
   );
 };

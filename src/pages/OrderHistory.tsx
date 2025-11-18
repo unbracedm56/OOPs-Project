@@ -26,11 +26,10 @@ const OrderHistory = () => {
   const [profile, setProfile] = useState<any>(null);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [cartCount, setCartCount] = useState(0);
+  const [userRole, setUserRole] = useState("");
 
   useEffect(() => {
-    fetchProfile();
-    fetchOrders();
-    fetchCounts();
+    checkRoleAndFetchData();
 
     // Set up real-time subscription for new orders
     const setupRealtimeSubscription = async () => {
@@ -61,6 +60,29 @@ const OrderHistory = () => {
 
     setupRealtimeSubscription();
   }, []);
+
+  const checkRoleAndFetchData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate("/auth");
+        return;
+      }
+
+      // Check user role
+      const { data: role } = await supabase.rpc('get_user_role', {
+        _user_id: user.id
+      });
+
+      setUserRole(role || "customer");
+      fetchProfile();
+      fetchOrders();
+      fetchCounts();
+    } catch (error) {
+      console.error("Error checking role:", error);
+      navigate("/auth");
+    }
+  };
 
   const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -218,13 +240,15 @@ const OrderHistory = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <AmazonHeader
-        cartCount={cartCount}
-        wishlistCount={wishlistCount}
-        userName={profile?.full_name?.split(" ")[0]}
-        onSignOut={handleSignOut}
-      />
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex flex-col">
+      {userRole === "customer" && (
+        <AmazonHeader
+          cartCount={cartCount}
+          wishlistCount={wishlistCount}
+          userName={profile?.full_name?.split(" ")[0]}
+          onSignOut={handleSignOut}
+        />
+      )}
 
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8">
@@ -537,7 +561,7 @@ const OrderHistory = () => {
         </div>
       </main>
 
-      <AmazonFooter />
+      {userRole === "customer" && <AmazonFooter />}
     </div>
   );
 };

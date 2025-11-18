@@ -43,7 +43,7 @@ const CustomerDashboardNew = () => {
       title: "Great Deals Every Day",
       description: "Save big on your favorite products",
       ctaText: "View Deals",
-      ctaLink: "#deals",
+      ctaLink: "/category/deals",
     },
     {
       id: "3",
@@ -51,7 +51,7 @@ const CustomerDashboardNew = () => {
       title: "Fresh Arrivals",
       description: "Check out our newest products",
       ctaText: "Explore",
-      ctaLink: "#new",
+      ctaLink: "/category/new-arrivals",
     },
   ];
 
