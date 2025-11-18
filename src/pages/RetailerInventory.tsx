@@ -2,19 +2,21 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import RetailerLayout from "@/components/RetailerLayout";
 
 export default function RetailerInventory() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [inventory, setInventory] = useState<any[]>([]);
   const [store, setStore] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -62,6 +64,14 @@ export default function RetailerInventory() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      setProfile(profileData);
 
       const { data: storeData } = await supabase
         .from("stores")
@@ -296,104 +306,96 @@ export default function RetailerInventory() {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    return <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
     </div>;
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate("/dashboard")}>
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <h1 className="text-2xl font-bold">Manage Inventory</h1>
-            </div>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Product
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Product to Inventory</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleAdd} className="space-y-4">
-                  <div>
-                    <Label htmlFor="product_name">Product Name *</Label>
-                    <Input id="product_name" name="product_name" required />
-                  </div>
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Input id="description" name="description" />
-                  </div>
-                  <div>
-                    <Label htmlFor="brand">Brand</Label>
-                    <Input id="brand" name="brand" />
-                  </div>
-                  <div>
-                    <Label htmlFor="sku">SKU</Label>
-                    <Input id="sku" name="sku" placeholder="Product SKU (optional)" />
-                  </div>
-                  <div>
-                    <Label htmlFor="category">Category</Label>
-                    <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="images">Image URLs (comma-separated)</Label>
-                    <Input 
-                      id="images" 
-                      value={imageUrls}
-                      onChange={(e) => setImageUrls(e.target.value)}
-                      placeholder="https://example.com/image1.jpg, https://example.com/image2.jpg"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="add_price">Selling Price (₹) *</Label>
-                    <Input id="add_price" name="price" type="number" step="0.01" min="0" required />
-                  </div>
-                  <div>
-                    <Label htmlFor="add_mrp">MRP (₹) *</Label>
-                    <Input id="add_mrp" name="mrp" type="number" step="0.01" min="0" required />
-                  </div>
-                  <div>
-                    <Label htmlFor="add_stock_qty">Stock Quantity *</Label>
-                    <Input id="add_stock_qty" name="stock_qty" type="number" min="0" required />
-                  </div>
-                  <div>
-                    <Label htmlFor="add_delivery_days">Delivery Days *</Label>
-                    <Input id="add_delivery_days" name="delivery_days" type="number" min="1" defaultValue="3" required />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" id="add_is_active" name="is_active" defaultChecked />
-                    <Label htmlFor="add_is_active">Active</Label>
-                  </div>
-                  <Button type="submit" className="w-full">Create Product & Add to Inventory</Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 gap-6">
+    <RetailerLayout 
+      title="Manage Inventory" 
+      activePage="inventory"
+      profile={profile}
+      headerActions={
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Product
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New Product to Inventory</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleAdd} className="space-y-4">
+              <div>
+                <Label htmlFor="product_name">Product Name *</Label>
+                <Input id="product_name" name="product_name" required />
+              </div>
+              <div>
+                <Label htmlFor="description">Description</Label>
+                <Input id="description" name="description" />
+              </div>
+              <div>
+                <Label htmlFor="brand">Brand</Label>
+                <Input id="brand" name="brand" />
+              </div>
+              <div>
+                <Label htmlFor="sku">SKU</Label>
+                <Input id="sku" name="sku" placeholder="Product SKU (optional)" />
+              </div>
+              <div>
+                <Label htmlFor="category">Category</Label>
+                <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="images">Image URLs (comma-separated)</Label>
+                <Input 
+                  id="images" 
+                  value={imageUrls}
+                  onChange={(e) => setImageUrls(e.target.value)}
+                  placeholder="https://example.com/image1.jpg, https://example.com/image2.jpg"
+                />
+              </div>
+              <div>
+                <Label htmlFor="add_price">Selling Price (₹) *</Label>
+                <Input id="add_price" name="price" type="number" step="0.01" min="0" required />
+              </div>
+              <div>
+                <Label htmlFor="add_mrp">MRP (₹) *</Label>
+                <Input id="add_mrp" name="mrp" type="number" step="0.01" min="0" required />
+              </div>
+              <div>
+                <Label htmlFor="add_stock_qty">Stock Quantity *</Label>
+                <Input id="add_stock_qty" name="stock_qty" type="number" min="0" required />
+              </div>
+              <div>
+                <Label htmlFor="add_delivery_days">Delivery Days *</Label>
+                <Input id="add_delivery_days" name="delivery_days" type="number" min="1" defaultValue="3" required />
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="add_is_active" name="is_active" defaultChecked />
+                <Label htmlFor="add_is_active">Active</Label>
+              </div>
+              <Button type="submit" className="w-full">Create Product & Add to Inventory</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      }
+    >
+      <div className="grid grid-cols-1 gap-6">
           {inventory.map((item) => (
             <Card key={item.id}>
               <CardContent className="p-6">
@@ -520,7 +522,6 @@ export default function RetailerInventory() {
             </Card>
           ))}
         </div>
-      </div>
-    </div>
+    </RetailerLayout>
   );
 }

@@ -168,8 +168,8 @@ const ProductDetail = () => {
     if (inventoryData && inventoryData.length > 0) {
       setSelectedInventory(inventoryData[0]);
       
-      // ONLY fetch wholesaler stock for PROXY SYSTEM (customers only)
-      if (userRole === 'customer' || !userRole) {
+      // ONLY fetch wholesaler stock for PROXY SYSTEM (customers only, NOT retailers)
+      if ((userRole === 'customer' || !userRole) && roleFromDb !== 'retailer') {
         const retailerStoreId = inventoryData[0].store.id;
         const retailerProductId = inventoryData[0].product_id;
         console.log("🔍 [PROXY SYSTEM] Looking for wholesaler backup for product:", productData.name);

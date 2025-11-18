@@ -332,6 +332,7 @@ const CustomerDashboardNew = () => {
         wishlistCount={wishlistCount}
         userName={profile?.full_name?.split(" ")[0]}
         onSignOut={() => setShowSignOutDialog(true)}
+        userRole="customer"
       />
 
       {/* Main Content */}

@@ -192,7 +192,7 @@ const Wishlist = () => {
     }
   };
 
-  const handleAddToCart = async (productId: string) => {
+  const handleAddToCart = async (productId: string, inventoryId: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -200,30 +200,60 @@ const Wishlist = () => {
         return;
       }
 
-      // Check if already in cart
-      const { data: existingCart } = await supabase
+      // Get or create cart
+      let { data: cart } = await supabase
         .from("cart")
-        .select("id, qty")
+        .select("id")
         .eq("user_id", user.id)
-        .eq("inventory_id", productId)
         .single();
 
-      if (existingCart) {
-        await supabase
+      if (!cart) {
+        const { data: newCart, error: cartError } = await supabase
           .from("cart")
-          .update({ qty: existingCart.qty + 1 })
-          .eq("id", existingCart.id);
+          .insert({ user_id: user.id })
+          .select()
+          .single();
+
+        if (cartError || !newCart) {
+          toast({
+            title: "Error",
+            description: "Failed to create cart",
+            variant: "destructive",
+          });
+          return;
+        }
+        cart = newCart;
+      }
+
+      // Check if item already in cart
+      const { data: existingItem } = await supabase
+        .from("cart_items")
+        .select("*")
+        .eq("cart_id", cart.id)
+        .eq("inventory_id", inventoryId)
+        .single();
+
+      if (existingItem) {
+        await supabase
+          .from("cart_items")
+          .update({ qty: existingItem.qty + 1 })
+          .eq("id", existingItem.id);
       } else {
         await supabase
-          .from("cart")
-          .insert({ user_id: user.id, inventory_id: productId, qty: 1 });
+          .from("cart_items")
+          .insert({
+            cart_id: cart.id,
+            inventory_id: inventoryId,
+            qty: 1,
+          });
       }
 
       toast({
         title: "Added to cart",
+        description: "Item has been added to your cart",
       });
       
-      setCartCount(prev => prev + 1);
+      fetchCounts();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -234,24 +264,25 @@ const Wishlist = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {userRole === "customer" && (
-        <AmazonHeader
-          cartCount={cartCount}
-          wishlistCount={wishlistCount}
-          userName={profile?.full_name?.split(" ")[0]}
-          onSignOut={handleSignOut}
-        />
-      )}
+    <div className="min-h-screen bg-muted/30">
+      <AmazonHeader
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+        userName={profile?.full_name?.split(" ")[0]}
+        onSignOut={handleSignOut}
+        userRole={userRole || "customer"}
+      />
 
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8">
           {/* Page Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-2">
+            <h1 className="text-3xl font-bold mb-2">
               My Wishlist
             </h1>
-            <p className="text-muted-foreground">Save your favorite products for later</p>
+            <p className="text-muted-foreground">
+              {wishlist.length} {wishlist.length === 1 ? 'item' : 'items'} saved for later
+            </p>
           </div>
 
           {loading ? (
@@ -262,115 +293,140 @@ const Wishlist = () => {
               </div>
             </div>
           ) : wishlist.length === 0 ? (
-            <Card className="border-2 border-dashed">
-              <CardContent className="py-16 text-center">
-                <div className="mx-auto w-24 h-24 mb-6 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                  <Heart className="h-12 w-12 text-primary" />
+            <Card className="max-w-2xl mx-auto text-center p-12">
+              <div className="flex flex-col items-center gap-6">
+                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center">
+                  <Heart className="h-12 w-12 text-muted-foreground" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">Your wishlist is empty</h3>
-                <p className="text-muted-foreground mb-6">Start adding products you love!</p>
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">Your wishlist is empty</h2>
+                  <p className="text-muted-foreground mb-6">
+                    Save items you love to buy them later
+                  </p>
+                </div>
                 <Button 
-                  className="bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover"
-                  onClick={() => navigate("/customer-dashboard")}
+                  size="lg"
+                  onClick={() => navigate(userRole === "retailer" ? "/retailer/wholesaler-marketplace" : "/dashboard")}
                 >
-                  Browse Products
+                  Continue Shopping
                 </Button>
-              </CardContent>
+              </div>
             </Card>
           ) : (
-            <>
-              <div className="mb-4 flex items-center justify-between">
-                <p className="text-muted-foreground">{wishlist.length} {wishlist.length === 1 ? 'item' : 'items'}</p>
-              </div>
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {wishlist.map((item) => {
-                  const product = item.product;
-                  const images = Array.isArray(product.images) ? product.images : [];
-                  const imageUrl = images[0] || "/placeholder.svg";
-                  
-                  return (
-                    <Card key={item.id} className="group relative overflow-hidden border-2 hover:border-primary/50 hover:shadow-xl transition-all">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-2 top-2 z-10 bg-background/80 backdrop-blur-sm hover:bg-destructive hover:text-destructive-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemove(item.id);
+            <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {wishlist.map((item) => {
+                const product = item.product;
+                const images = Array.isArray(product.images) ? product.images : [];
+                const imageUrl = images[0] || "/placeholder.svg";
+                const discount = item.inventory?.mrp && item.inventory?.mrp > item.inventory?.price
+                  ? Math.round(((item.inventory.mrp - item.inventory.price) / item.inventory.mrp) * 100)
+                  : 0;
+                
+                return (
+                  <Card 
+                    key={item.id} 
+                    className="group relative overflow-hidden border hover:border-primary/50 hover:shadow-xl transition-all cursor-pointer"
+                    onClick={() => navigate(`/product/${product.slug}`)}
+                  >
+                    {/* Remove Button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-2 z-10 h-8 w-8 rounded-full bg-background/80 backdrop-blur opacity-0 group-hover:opacity-100 transition-opacity hover:bg-background"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove(item.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+
+                    {/* Wishlist Icon */}
+                    <div className="absolute top-2 left-2 z-10">
+                      <div className="h-8 w-8 rounded-full bg-background/80 backdrop-blur flex items-center justify-center">
+                        <Heart className="h-4 w-4 text-red-500 fill-red-500" />
+                      </div>
+                    </div>
+
+                    {/* Product Image */}
+                    <div className="aspect-square bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center p-4 relative overflow-hidden">
+                      <img
+                        src={imageUrl}
+                        alt={product.name}
+                        className="max-h-full max-w-full object-contain group-hover:scale-110 transition-transform duration-500"
+                        onError={(e) => {
+                          e.currentTarget.src = "/placeholder.svg";
                         }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                      <div
-                        className="cursor-pointer"
-                        onClick={() => navigate(`/product/${product.slug}`)}
-                      >
-                        <div className="aspect-square overflow-hidden bg-muted relative">
-                          <img
-                            src={imageUrl}
-                            alt={product.name}
-                            className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
-                          <div className="absolute top-2 left-2">
-                            <Heart className="h-5 w-5 text-primary fill-primary" />
+                      />
+                    </div>
+
+                    <CardContent className="p-4 space-y-2">
+                      {/* Brand Badge */}
+                      {product.brand && (
+                        <Badge variant="outline" className="text-xs mb-1 border-primary/30 text-primary">
+                          {product.brand}
+                        </Badge>
+                      )}
+
+                      {/* Product Name */}
+                      <h3 className="text-sm font-medium line-clamp-2 text-foreground group-hover:text-primary transition-colors min-h-[2.5rem]">
+                        {product.name}
+                      </h3>
+
+                      {/* Category */}
+                      {product.category && (
+                        <p className="text-xs text-muted-foreground">
+                          {product.category.name}
+                        </p>
+                      )}
+
+                      {/* Price Section */}
+                      {item.inventory && (
+                        <div className="pt-2 space-y-1">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-bold text-foreground">
+                              ₹{item.inventory.price.toLocaleString()}
+                            </span>
+                            {item.inventory.mrp && item.inventory.mrp > item.inventory.price && (
+                              <span className="text-sm text-muted-foreground line-through">
+                                ₹{item.inventory.mrp.toLocaleString()}
+                              </span>
+                            )}
                           </div>
-                        </div>
-                        <div className="p-4">
-                          <h3 className="font-semibold text-base line-clamp-2 mb-1">
-                            {product.name}
-                          </h3>
-                          {product.brand && (
-                            <p className="text-sm text-muted-foreground mb-2">{product.brand}</p>
-                          )}
-                          {product.category && (
-                            <Badge variant="secondary" className="mb-3 text-xs">
-                              {product.category.name}
+
+                          {/* Discount Badge */}
+                          {discount > 0 && (
+                            <Badge variant="secondary" className="bg-success/10 text-success border-0">
+                              Save {discount}%
                             </Badge>
                           )}
-                          {item.inventory && (
-                            <div className="space-y-2">
-                              <div className="flex items-baseline gap-2">
-                                <span className="text-xl font-bold">₹{item.inventory.price}</span>
-                                {item.inventory.mrp && item.inventory.mrp > item.inventory.price && (
-                                  <>
-                                    <span className="text-sm text-muted-foreground line-through">
-                                      ₹{item.inventory.mrp}
-                                    </span>
-                                    <Badge variant="destructive" className="text-xs">
-                                      {Math.round(((item.inventory.mrp - item.inventory.price) / item.inventory.mrp) * 100)}% OFF
-                                    </Badge>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          )}
                         </div>
-                      </div>
-                      <div className="p-4 pt-0">
-                        <Button 
-                          className="w-full bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (item.inventory) {
-                              handleAddToCart(item.inventory.id);
-                            }
-                          }}
-                          disabled={!item.inventory}
-                        >
-                          <ShoppingCart className="mr-2 h-4 w-4" />
-                          Add to Cart
-                        </Button>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            </>
+                      )}
+
+                      {/* Add to Cart Button */}
+                      <Button 
+                        className="w-full mt-3 gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (item.inventory) {
+                            handleAddToCart(item.product_id, item.inventory.id);
+                          }
+                        }}
+                        disabled={!item.inventory}
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        Add to Cart
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           )}
         </div>
       </main>
 
-      {userRole === "customer" && <AmazonFooter />}
+      <AmazonFooter />
     </div>
   );
 };

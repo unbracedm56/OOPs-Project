@@ -6,15 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Package } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import RetailerLayout from "@/components/RetailerLayout";
 
 export default function RetailerPurchasedProducts() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [store, setStore] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [deliveredOrders, setDeliveredOrders] = useState<any[]>([]);
   const [ownedProducts, setOwnedProducts] = useState<any[]>([]);
   const [purchasedTracking, setPurchasedTracking] = useState<any[]>([]);
@@ -164,33 +166,20 @@ export default function RetailerPurchasedProducts() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate("/retailer-dashboard")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">My Products</h1>
-              <p className="text-sm text-muted-foreground">
-                Manage products you own and sell to customers
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
+    <RetailerLayout 
+      title="My Products" 
+      activePage="products"
+      profile={profile}
+    >
+      <Tabs defaultValue="owned" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="owned">My Inventory ({ownedProducts.length})</TabsTrigger>
+          <TabsTrigger value="purchased">Purchased from Wholesalers</TabsTrigger>
+        </TabsList>
 
-      <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="owned" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="owned">My Inventory ({ownedProducts.length})</TabsTrigger>
-            <TabsTrigger value="purchased">Purchased from Wholesalers</TabsTrigger>
-          </TabsList>
-
-          {/* My Inventory Tab */}
-          <TabsContent value="owned">
-            <div className="space-y-4">
+        {/* My Inventory Tab */}
+        <TabsContent value="owned">
+          <div className="space-y-4">
               {ownedProducts.length === 0 ? (
                 <Card>
                   <CardContent className="p-8 text-center">
@@ -422,7 +411,6 @@ export default function RetailerPurchasedProducts() {
             </div>
           </TabsContent>
         </Tabs>
-      </div>
-    </div>
+    </RetailerLayout>
   );
 }

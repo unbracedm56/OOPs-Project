@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import RetailerLayout from "@/components/RetailerLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,9 +30,11 @@ import { AmazonFooter } from "@/components/amazon/AmazonFooter";
 
 const Profile = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [showRetailerLayout, setShowRetailerLayout] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [userEmail, setUserEmail] = useState<string>("");
   const [firstName, setFirstName] = useState("");
@@ -78,6 +81,12 @@ const Profile = () => {
       });
 
       setUserRole(role || "customer");
+      
+      // Check if coming from retailer dashboard (referrer contains /retailer/dashboard)
+      const fromRetailerDashboard = document.referrer.includes('/retailer/dashboard') || 
+                                     location.state?.from === 'retailer-dashboard';
+      setShowRetailerLayout(role === "retailer" && fromRetailerDashboard);
+      
       fetchProfile();
       fetchAddresses();
     } catch (error) {
@@ -386,29 +395,18 @@ const Profile = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {userRole === "customer" && (
-        <AmazonHeader
-          cartCount={cartCount}
-          wishlistCount={wishlistCount}
-          userName={profile?.full_name?.split(" ")[0]}
-          onSignOut={handleSignOut}
-        />
-      )}
-
-      <main className="flex-1">
-        <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Sidebar */}
-            <div className="lg:col-span-1">
-              <Card className="overflow-hidden border-2">
-                {/* Enhanced User Info Header */}
-                <div className="relative">
-                  {/* Gradient Background */}
-                  <div className="h-32 bg-gradient-to-br from-primary via-secondary to-accent relative overflow-hidden">
-                    <div className="absolute inset-0 bg-black/5" />
-                  </div>
+  // Main profile content (reusable for both layouts)
+  const renderProfileContent = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* Sidebar */}
+      <div className="lg:col-span-1">
+        <Card className="overflow-hidden border-2">
+          {/* Enhanced User Info Header */}
+          <div className="relative">
+            {/* Gradient Background */}
+            <div className="h-32 bg-gradient-to-br from-primary via-secondary to-accent relative overflow-hidden">
+              <div className="absolute inset-0 bg-black/5" />
+            </div>
                   
                   {/* Profile Info */}
                   <div className="px-6 pb-6 -mt-16">
@@ -1139,10 +1137,39 @@ const Profile = () => {
               )}
             </div>
           </div>
+  );
+
+  // Wrap in RetailerLayout if coming from retailer dashboard
+  if (showRetailerLayout) {
+    return (
+      <RetailerLayout 
+        title="Profile" 
+        activePage="dashboard"
+        profile={profile}
+      >
+        {renderProfileContent()}
+      </RetailerLayout>
+    );
+  }
+
+  // Default Amazon-style layout for customers and retailers from marketplace
+  return (
+    <div className="min-h-screen bg-muted/30 flex flex-col">
+      <AmazonHeader
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+        userName={profile?.full_name?.split(" ")[0]}
+        onSignOut={handleSignOut}
+        userRole={userRole || "customer"}
+      />
+
+      <main className="flex-1">
+        <div className="container mx-auto px-4 py-8">
+          {renderProfileContent()}
         </div>
       </main>
 
-      {userRole === "customer" && <AmazonFooter />}
+      <AmazonFooter />
     </div>
   );
 };

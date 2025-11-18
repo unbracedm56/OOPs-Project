@@ -5,8 +5,8 @@ export const useProductViewHistory = (productId: string | undefined, userRole: s
   useEffect(() => {
     const normalizedRole = userRole?.toLowerCase();
 
-    // Only track for customers when they view a product
-    if (!productId || normalizedRole !== 'customer') return;
+    // Track for both customers AND retailers when they view a product
+    if (!productId || (normalizedRole !== 'customer' && normalizedRole !== 'retailer')) return;
 
     const trackView = async () => {
       try {

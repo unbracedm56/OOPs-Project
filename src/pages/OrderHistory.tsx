@@ -106,13 +106,24 @@ const OrderHistory = () => {
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id);
 
-    const { count: cartCount } = await supabase
+    // Get cart and count items
+    const { data: cart } = await supabase
       .from("cart")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id);
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (cart) {
+      const { count: itemCount } = await supabase
+        .from("cart_items")
+        .select("*", { count: "exact", head: true })
+        .eq("cart_id", cart.id);
+      setCartCount(itemCount || 0);
+    } else {
+      setCartCount(0);
+    }
 
     setWishlistCount(wishlistCount || 0);
-    setCartCount(cartCount || 0);
   };
 
   const handleSignOut = async () => {
@@ -240,24 +251,25 @@ const OrderHistory = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex flex-col">
-      {userRole === "customer" && (
-        <AmazonHeader
-          cartCount={cartCount}
-          wishlistCount={wishlistCount}
-          userName={profile?.full_name?.split(" ")[0]}
-          onSignOut={handleSignOut}
-        />
-      )}
+    <div className="min-h-screen bg-muted/30">
+      <AmazonHeader
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+        userName={profile?.full_name?.split(" ")[0]}
+        onSignOut={handleSignOut}
+        userRole={userRole || "customer"}
+      />
 
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8">
           {/* Page Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-2">
+            <h1 className="text-3xl font-bold mb-2">
               My Orders
             </h1>
-            <p className="text-muted-foreground">Track, manage and view all your orders</p>
+            <p className="text-muted-foreground">
+              {orders.length} {orders.length === 1 ? 'order' : 'orders'} placed
+            </p>
           </div>
 
           {loading ? (
@@ -268,23 +280,27 @@ const OrderHistory = () => {
               </div>
             </div>
           ) : orders.length === 0 ? (
-            <Card className="border-2 border-dashed">
-              <CardContent className="py-16 text-center">
-                <div className="mx-auto w-24 h-24 mb-6 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                  <Package className="h-12 w-12 text-primary" />
+            <Card className="max-w-2xl mx-auto text-center p-12">
+              <div className="flex flex-col items-center gap-6">
+                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center">
+                  <Package className="h-12 w-12 text-muted-foreground" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">No orders yet</h3>
-                <p className="text-muted-foreground mb-6">Start shopping to see your orders here</p>
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">No orders yet</h2>
+                  <p className="text-muted-foreground mb-6">
+                    Start shopping to see your orders here
+                  </p>
+                </div>
                 <Button 
-                  className="bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover"
-                  onClick={() => navigate("/customer-dashboard")}
+                  size="lg"
+                  onClick={() => navigate(userRole === "retailer" ? "/retailer/wholesaler-marketplace" : "/dashboard")}
                 >
                   Start Shopping
                 </Button>
-              </CardContent>
+              </div>
             </Card>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {orders.map((order) => {
                 const isExpanded = expandedOrderId === order.id;
                 const statusSteps = getStatusSteps();
@@ -293,7 +309,7 @@ const OrderHistory = () => {
               return (
                 <Card 
                   key={order.id} 
-                  className="transition-all hover:shadow-xl cursor-pointer overflow-hidden border-2 hover:border-primary/50"
+                  className="transition-all hover:shadow-lg cursor-pointer overflow-hidden border hover:border-primary/50"
                   onClick={() => toggleOrderExpand(order.id)}
                 >
                   <CardContent className="p-6">
@@ -561,7 +577,7 @@ const OrderHistory = () => {
         </div>
       </main>
 
-      {userRole === "customer" && <AmazonFooter />}
+      <AmazonFooter />
     </div>
   );
 };

@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ArrowLeft, Calendar as CalendarIcon, MapPin, Package } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin, Package } from "lucide-react";
+import RetailerLayout from "@/components/RetailerLayout";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +29,7 @@ const ViewCustomers = () => {
   const [mapDialogOpen, setMapDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [store, setStore] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -76,6 +78,14 @@ const ViewCustomers = () => {
         navigate("/auth");
         return;
       }
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      setProfile(profileData);
 
       const { data: storeData } = await supabase
         .from("stores")
@@ -286,15 +296,12 @@ const ViewCustomers = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
+    <RetailerLayout 
+      title="Customer Orders" 
+      activePage="customers"
+      profile={profile}
+    >
       <div className="mx-auto max-w-6xl">
-        <Button variant="ghost" onClick={() => navigate("/retailer-dashboard")} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </Button>
-
-        <h1 className="mb-6 text-3xl font-bold">Customer Orders</h1>
-
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
@@ -565,7 +572,7 @@ const ViewCustomers = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </div>
+    </RetailerLayout>
   );
 };
 

@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Package, CreditCard, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { Package, CreditCard, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import RetailerLayout from "@/components/RetailerLayout";
 
 export default function RetailerProxyOrders() {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ export default function RetailerProxyOrders() {
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelReason, setCancelReason] = useState("");
+  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
@@ -34,6 +36,14 @@ export default function RetailerProxyOrders() {
         navigate("/auth");
         return;
       }
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      setProfile(profileData);
 
       // Get retailer's store
       const { data: store, error: storeError } = await supabase
@@ -397,30 +407,22 @@ export default function RetailerProxyOrders() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+    </div>;
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate("/retailer-dashboard")}>
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold">Wholesaler Orders</h1>
-                <p className="text-sm text-muted-foreground">
-                  Manage customer orders requiring wholesaler stock
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-8">
+    <RetailerLayout 
+      title="Wholesaler Orders" 
+      activePage="wholesaler-orders"
+      profile={profile}
+    >
+      <div className="mx-auto max-w-6xl">
+        <p className="text-sm text-muted-foreground mb-6">
+          Manage customer orders requiring wholesaler stock
+        </p>
+        
         <Tabs defaultValue="pending" className="w-full">
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="pending">
@@ -760,6 +762,6 @@ export default function RetailerProxyOrders() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </RetailerLayout>
   );
 }

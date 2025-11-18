@@ -23,6 +23,7 @@ interface AmazonHeaderProps {
   userName?: string;
   onSignOut?: () => void;
   showLocationSelector?: boolean;
+  userRole?: string;
 }
 
 export const AmazonHeader = ({
@@ -31,6 +32,7 @@ export const AmazonHeader = ({
   userName,
   onSignOut,
   showLocationSelector = true,
+  userRole,
 }: AmazonHeaderProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -181,16 +183,132 @@ export const AmazonHeader = ({
     try {
       const searchPattern = `%${query}%`;
       
-      const { data: products, error } = await supabase
-        .from("products")
-        .select("id, name, brand, images")
-        .or(`name.ilike.${searchPattern},brand.ilike.${searchPattern},description.ilike.${searchPattern}`)
-        .limit(6);
+      // For retailers, fetch products from wholesaler inventory only
+      if (userRole === "retailer") {
+        // First get wholesaler store IDs
+        const { data: wholesalerStores, error: storeError } = await supabase
+          .from("stores")
+          .select("id")
+          .eq("type", "wholesaler");
 
-      if (error) throw error;
-      
-      setSuggestions(products || []);
-      setShowSuggestions(true);
+        if (storeError) throw storeError;
+        
+        const storeIds = wholesalerStores?.map(s => s.id) || [];
+        
+        if (storeIds.length === 0) {
+          setSuggestions([]);
+          setShowSuggestions(false);
+          setIsSearching(false);
+          return;
+        }
+
+        // Then get products from those stores
+        const { data: inventory, error } = await supabase
+          .from("inventory")
+          .select(`
+            product_id,
+            products (
+              id,
+              name,
+              brand,
+              images,
+              slug,
+              description
+            )
+          `)
+          .in("store_id", storeIds)
+          .limit(20);
+
+        if (error) throw error;
+        
+        // Filter by search pattern and remove duplicates
+        const uniqueProducts = new Map();
+        inventory?.forEach((item: any) => {
+          if (item.products) {
+            const product = item.products;
+            const matchesSearch = 
+              product.name?.toLowerCase().includes(query.toLowerCase()) ||
+              product.brand?.toLowerCase().includes(query.toLowerCase()) ||
+              product.description?.toLowerCase().includes(query.toLowerCase());
+            
+            if (matchesSearch && !uniqueProducts.has(product.id)) {
+              uniqueProducts.set(product.id, {
+                id: product.slug || product.id,
+                name: product.name,
+                brand: product.brand,
+                images: product.images
+              });
+            }
+          }
+        });
+        
+        const transformedProducts = Array.from(uniqueProducts.values()).slice(0, 6);
+        
+        setSuggestions(transformedProducts);
+        setShowSuggestions(true);
+      } else {
+        // For customers, fetch products from retailer inventory only
+        const { data: retailerStores, error: storeError } = await supabase
+          .from("stores")
+          .select("id")
+          .eq("type", "retailer");
+
+        if (storeError) throw storeError;
+        
+        const storeIds = retailerStores?.map(s => s.id) || [];
+        
+        if (storeIds.length === 0) {
+          setSuggestions([]);
+          setShowSuggestions(false);
+          setIsSearching(false);
+          return;
+        }
+
+        // Then get products from those stores
+        const { data: inventory, error } = await supabase
+          .from("inventory")
+          .select(`
+            product_id,
+            products (
+              id,
+              name,
+              brand,
+              images,
+              slug,
+              description
+            )
+          `)
+          .in("store_id", storeIds)
+          .limit(20);
+
+        if (error) throw error;
+        
+        // Filter by search pattern and remove duplicates
+        const uniqueProducts = new Map();
+        inventory?.forEach((item: any) => {
+          if (item.products) {
+            const product = item.products;
+            const matchesSearch = 
+              product.name?.toLowerCase().includes(query.toLowerCase()) ||
+              product.brand?.toLowerCase().includes(query.toLowerCase()) ||
+              product.description?.toLowerCase().includes(query.toLowerCase());
+            
+            if (matchesSearch && !uniqueProducts.has(product.id)) {
+              uniqueProducts.set(product.id, {
+                id: product.slug || product.id,
+                name: product.name,
+                brand: product.brand,
+                images: product.images
+              });
+            }
+          }
+        });
+        
+        const transformedProducts = Array.from(uniqueProducts.values()).slice(0, 6);
+        
+        setSuggestions(transformedProducts);
+        setShowSuggestions(true);
+      }
     } catch (error) {
       console.error("Error fetching suggestions:", error);
       setSuggestions([]);
