@@ -103,23 +103,6 @@ const ViewRetailers = () => {
         .from("orders")
         .select(`
           *,
-          profiles:customer_id (
-            full_name,
-            phone
-          ),
-          stores:store_id (
-            name,
-            phone
-          ),
-          addresses:delivery_address_id (
-            line1,
-            line2,
-            city,
-            state,
-            pincode,
-            lat,
-            lng
-          ),
           order_items (
             *,
             inventory:inventory_id (
@@ -137,7 +120,81 @@ const ViewRetailers = () => {
 
       if (error) throw error;
 
-      setOrders(ordersData || []);
+      // Fetch customer (retailer) details for each order
+      const ordersWithCustomerData = await Promise.all(
+        (ordersData || []).map(async (order) => {
+          // First, try to get the store using customer_id as store ID
+          const { data: storeByCustomerId, error: storeByIdError } = await supabase
+            .from("stores")
+            .select("id, name, phone, owner_id, warehouse_address_id")
+            .eq("id", order.customer_id)
+            .maybeSingle();
+
+          let customerData = null;
+          let storeData = null;
+
+          if (storeByCustomerId) {
+            // customer_id is actually a store ID, get the owner's profile
+            console.log("customer_id is a store ID:", storeByCustomerId);
+            const { data: ownerProfile } = await supabase
+              .from("profiles")
+              .select("full_name, phone")
+              .eq("id", storeByCustomerId.owner_id)
+              .maybeSingle();
+            
+            customerData = ownerProfile;
+            storeData = storeByCustomerId;
+          } else {
+            // customer_id is a user ID, proceed normally
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("full_name, phone")
+              .eq("id", order.customer_id)
+              .maybeSingle();
+
+            customerData = profileData;
+
+            const { data: storeByOwnerId } = await supabase
+              .from("stores")
+              .select("id, name, phone, warehouse_address_id")
+              .eq("owner_id", order.customer_id)
+              .maybeSingle();
+
+            storeData = storeByOwnerId;
+          }
+
+          let warehouseAddress = null;
+          if (storeData?.warehouse_address_id) {
+            const { data: addressData } = await supabase
+              .from("addresses")
+              .select("line1, line2, city, state, pincode, lat, lng")
+              .eq("id", storeData.warehouse_address_id)
+              .maybeSingle();
+            
+            warehouseAddress = addressData;
+          }
+
+          console.log(`Order ${order.order_number}:`, {
+            customer_id: order.customer_id,
+            customerData,
+            storeData,
+            warehouseAddress
+          });
+
+          return {
+            ...order,
+            customer: customerData,
+            customer_store: {
+              ...storeData,
+              addresses: warehouseAddress
+            }
+          };
+        })
+      );
+
+      console.log("Orders data:", ordersWithCustomerData);
+      console.log("First order sample:", ordersWithCustomerData?.[0]);
+      setOrders(ordersWithCustomerData || []);
     } catch (error) {
       console.error("Error fetching orders:", error);
       toast({
@@ -253,10 +310,10 @@ const ViewRetailers = () => {
                     <div>
                       <CardTitle>Order #{order.order_number}</CardTitle>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Retailer: {order.stores?.name || 'N/A'}
+                        Retailer: {order.customer?.full_name || order.customer_store?.name || 'N/A'}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Phone: {order.stores?.phone || order.profiles?.phone || 'N/A'}
+                        Phone: {order.customer?.phone || order.customer_store?.phone || 'N/A'}
                       </p>
                     </div>
                     <div className="flex flex-col gap-2 items-end">
@@ -281,10 +338,13 @@ const ViewRetailers = () => {
                 <CardContent>
                   <div className="space-y-4">
                     <div>
-                      <p className="text-sm font-semibold mb-1">Delivery Address:</p>
+                      <p className="text-sm font-semibold mb-1">Warehouse Address:</p>
                       <p className="text-sm text-muted-foreground">
-                        {order.addresses?.line1}, {order.addresses?.line2 && `${order.addresses.line2}, `}
-                        {order.addresses?.city}, {order.addresses?.state} - {order.addresses?.pincode}
+                        {order.customer_store?.addresses?.line1 || 'N/A'}
+                        {order.customer_store?.addresses?.line2 && `, ${order.customer_store.addresses.line2}`}
+                        {order.customer_store?.addresses?.city && `, ${order.customer_store.addresses.city}`}
+                        {order.customer_store?.addresses?.state && `, ${order.customer_store.addresses.state}`}
+                        {order.customer_store?.addresses?.pincode && ` - ${order.customer_store.addresses.pincode}`}
                       </p>
                     </div>
 
@@ -384,26 +444,27 @@ const ViewRetailers = () => {
           <DialogHeader>
             <DialogTitle>Delivery Route</DialogTitle>
             <DialogDescription>
-              Route from your warehouse to the delivery address
+              Route from your warehouse to the retailer's warehouse address
             </DialogDescription>
           </DialogHeader>
           {selectedOrder && (
             <div className="mt-4">
               {store?.warehouse_address?.lat && store?.warehouse_address?.lng ? (
-                selectedOrder.addresses?.lat && selectedOrder.addresses?.lng ? (
+                selectedOrder.customer_store?.addresses?.lat && 
+                selectedOrder.customer_store?.addresses?.lng ? (
                   <DeliveryMap
                     warehouseLocation={{
                       lat: store.warehouse_address.lat,
                       lng: store.warehouse_address.lng,
                     }}
                     deliveryLocation={{
-                      lat: selectedOrder.addresses.lat,
-                      lng: selectedOrder.addresses.lng,
+                      lat: selectedOrder.customer_store.addresses.lat,
+                      lng: selectedOrder.customer_store.addresses.lng,
                     }}
                   />
                 ) : (
                   <p className="text-center text-muted-foreground py-8">
-                    Delivery location coordinates not available for this order.
+                    Retailer warehouse location coordinates not available for this order.
                   </p>
                 )
               ) : (

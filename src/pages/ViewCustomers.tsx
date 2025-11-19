@@ -112,19 +112,6 @@ const ViewCustomers = () => {
         .from("orders")
         .select(`
           *,
-          profiles:customer_id (
-            full_name,
-            phone
-          ),
-          addresses:delivery_address_id (
-            line1,
-            line2,
-            city,
-            state,
-            pincode,
-            lat,
-            lng
-          ),
           order_items (
             *,
             inventory:inventory_id (
@@ -142,8 +129,67 @@ const ViewCustomers = () => {
 
       if (error) throw error;
 
-      // Fetch proxy order details for orders that need approval
-      const ordersWithProxy = await Promise.all((ordersData || []).map(async (order) => {
+      // Fetch customer details, delivery address, and proxy order details for each order
+      const ordersWithCustomerData = await Promise.all((ordersData || []).map(async (order) => {
+        console.log(`Processing order ${order.order_number}, customer_id:`, order.customer_id);
+
+        // Try to fetch customer profile using customer_id
+        let customerData = null;
+        
+        // Query profiles table directly
+        const profileQuery = supabase
+          .from("profiles")
+          .select("id, full_name, phone")
+          .eq("id", order.customer_id);
+        
+        const { data: profileData, error: customerError } = await profileQuery.maybeSingle();
+
+        console.log(`Profile query for ${order.customer_id}:`, { 
+          data: profileData, 
+          error: customerError,
+          query: profileQuery 
+        });
+
+        customerData = profileData;
+
+        // Fetch delivery address
+        let deliveryAddress = null;
+        if (order.delivery_address_id) {
+          const { data: addressData } = await supabase
+            .from("addresses")
+            .select("user_id, line1, line2, city, state, pincode, lat, lng")
+            .eq("id", order.delivery_address_id)
+            .maybeSingle();
+          deliveryAddress = addressData;
+          
+          console.log(`Address data for order ${order.order_number}:`, addressData);
+        }
+
+        // If customer profile not found but we have delivery address, try fetching profile using address user_id
+        if (!customerData && deliveryAddress?.user_id) {
+          console.log(`Trying to fetch profile from address user_id: ${deliveryAddress.user_id}`);
+          
+          const { data: profileFromAddress, error: addressProfileError } = await supabase
+            .from("profiles")
+            .select("id, full_name, phone")
+            .eq("id", deliveryAddress.user_id)
+            .maybeSingle();
+          
+          console.log(`Profile from address:`, { data: profileFromAddress, error: addressProfileError });
+          customerData = profileFromAddress;
+        }
+
+        if (!customerData) {
+          console.error(`NO CUSTOMER DATA FOUND for order ${order.order_number}. customer_id: ${order.customer_id}, address_user_id: ${deliveryAddress?.user_id}`);
+        }
+
+        let orderWithCustomer = { 
+          ...order, 
+          profiles: customerData,
+          addresses: deliveryAddress
+        };
+
+        // Fetch proxy order details if needed
         if (order.needs_proxy_approval) {
           const { data: proxyOrders } = await supabase
             .from("proxy_orders")
@@ -159,12 +205,13 @@ const ViewCustomers = () => {
             `)
             .eq("customer_order_id", order.id);
           
-          return { ...order, proxy_orders: proxyOrders || [] };
+          orderWithCustomer = { ...orderWithCustomer, proxy_orders: proxyOrders || [] };
         }
-        return order;
+
+        return orderWithCustomer;
       }));
 
-      setOrders(ordersWithProxy || []);
+      setOrders(ordersWithCustomerData || []);
     } catch (error) {
       console.error("Error fetching orders:", error);
       toast({
