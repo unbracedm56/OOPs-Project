@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ArrowLeft, Calendar as CalendarIcon, MapPin } from "lucide-react";
+import { Calendar as CalendarIcon, MapPin } from "lucide-react";
+import WholesalerLayout from "@/components/WholesalerLayout";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -231,18 +232,11 @@ const ViewRetailers = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="mx-auto max-w-6xl">
-        <Button variant="ghost" onClick={() => navigate("/wholesaler-dashboard")} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </Button>
-
-        <h1 className="mb-6 text-3xl font-bold">Retailer Orders</h1>
+    <WholesalerLayout activePage="retailers" title="Retailer Orders">
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
           </div>
         ) : orders.length === 0 ? (
           <Card>
@@ -384,7 +378,6 @@ const ViewRetailers = () => {
             ))}
           </div>
         )}
-      </div>
 
       <Dialog open={mapDialogOpen} onOpenChange={setMapDialogOpen}>
         <DialogContent className="max-w-3xl">
@@ -435,10 +428,10 @@ const ViewRetailers = () => {
                 </div>
               )}
             </div>
-          )}
+          )}  
         </DialogContent>
       </Dialog>
-    </div>
+    </WholesalerLayout>
   );
 };
 

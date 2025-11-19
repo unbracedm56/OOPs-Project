@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import RetailerLayout from "@/components/RetailerLayout";
+import WholesalerLayout from "@/components/WholesalerLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,7 @@ const Profile = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [showRetailerLayout, setShowRetailerLayout] = useState(false);
+  const [showWholesalerLayout, setShowWholesalerLayout] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [userEmail, setUserEmail] = useState<string>("");
   const [firstName, setFirstName] = useState("");
@@ -82,10 +84,15 @@ const Profile = () => {
 
       setUserRole(role || "customer");
       
-      // Check if coming from retailer dashboard (referrer contains /retailer/dashboard)
-      const fromRetailerDashboard = document.referrer.includes('/retailer/dashboard') || 
+      // Check if coming from retailer dashboard
+      const fromRetailerDashboard = document.referrer.includes('/retailer-dashboard') || 
                                      location.state?.from === 'retailer-dashboard';
       setShowRetailerLayout(role === "retailer" && fromRetailerDashboard);
+      
+      // Check if coming from wholesaler dashboard
+      const fromWholesalerDashboard = document.referrer.includes('/wholesaler-dashboard') || 
+                                       location.state?.from === 'wholesaler-dashboard';
+      setShowWholesalerLayout(role === "wholesaler" && fromWholesalerDashboard);
       
       fetchProfile();
       fetchAddresses();
@@ -463,7 +470,8 @@ const Profile = () => {
 
                 {/* Navigation */}
                 <div className="divide-y">
-                  {/* Orders */}
+                  {/* Orders - Hide only for wholesalers */}
+                  {userRole !== "wholesaler" && (
                   <div
                     className={`flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors ${
                       activeSection === "orders" ? "bg-muted" : ""
@@ -479,6 +487,7 @@ const Profile = () => {
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
+                  )}
 
                   {/* Account Settings */}
                   <div>
@@ -564,7 +573,8 @@ const Profile = () => {
                     </div>
                   </div>
 
-                  {/* My Activities */}
+                  {/* My Activities - Hide only for wholesalers */}
+                  {userRole !== "wholesaler" && (
                   <div>
                     <div className="p-4">
                       <div className="flex items-center gap-3 mb-3">
@@ -583,6 +593,7 @@ const Profile = () => {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* Support */}
                   <div>
@@ -1138,6 +1149,19 @@ const Profile = () => {
             </div>
           </div>
   );
+
+  // Wrap in WholesalerLayout if coming from wholesaler dashboard
+  if (showWholesalerLayout) {
+    return (
+      <WholesalerLayout 
+        title="Profile" 
+        activePage="dashboard"
+        userName={profile?.full_name}
+      >
+        {renderProfileContent()}
+      </WholesalerLayout>
+    );
+  }
 
   // Wrap in RetailerLayout if coming from retailer dashboard
   if (showRetailerLayout) {

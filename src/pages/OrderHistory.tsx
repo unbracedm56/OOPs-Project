@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { DeliveryMap } from "@/components/DeliveryMap";
 import { AmazonHeader } from "@/components/amazon/AmazonHeader";
 import { AmazonFooter } from "@/components/amazon/AmazonFooter";
+import { InvoiceGenerator } from "@/components/InvoiceGenerator";
+import { CalendarIntegration } from "@/components/CalendarIntegration";
 import {
   Dialog,
   DialogContent,
@@ -147,7 +149,14 @@ const OrderHistory = () => {
             name,
             phone,
             type,
-            warehouse_address_id
+            warehouse_address_id,
+            address:address_id (
+              line1,
+              line2,
+              city,
+              state,
+              pincode
+            )
           ),
           delivery_address:delivery_address_id (
             line1,
@@ -338,19 +347,27 @@ const OrderHistory = () => {
                         >
                           {order.status.toUpperCase()}
                         </Badge>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedOrder(order);
-                            setMapDialogOpen(true);
-                          }}
-                          className="gap-1 hover:bg-gradient-to-r hover:from-primary/10 hover:to-secondary/10"
-                        >
-                          <MapPin className="h-4 w-4" />
-                          Track
-                        </Button>
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedOrder(order);
+                              setMapDialogOpen(true);
+                            }}
+                            className="gap-1 hover:bg-gradient-to-r hover:from-primary/10 hover:to-secondary/10"
+                          >
+                            <MapPin className="h-4 w-4" />
+                            Track
+                          </Button>
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <InvoiceGenerator order={order} />
+                          </div>
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <CalendarIntegration order={order} />
+                          </div>
+                        </div>
                       </div>
                     </div>
 

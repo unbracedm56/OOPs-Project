@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Plus, Package, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +28,8 @@ const CheckoutPage = () => {
   const [estimatedDelivery, setEstimatedDelivery] = useState("");
   const [useLiveLocation, setUseLiveLocation] = useState(false);
   const [userRole, setUserRole] = useState("");
+  const [isStorePickup, setIsStorePickup] = useState(false);
+  const [pickupDate, setPickupDate] = useState("");
 
   useEffect(() => {
     checkRoleAndFetchData();
@@ -76,6 +79,8 @@ const CheckoutPage = () => {
       console.error("Error fetching addresses:", error);
     }
   };
+
+
 
   const fetchCart = async () => {
     try {
@@ -239,12 +244,15 @@ const CheckoutPage = () => {
             customer_id: user.id,
             store_id: storeId,
             subtotal: orderTotal,
-            shipping_fee: cartTotal.delivery,
-            total: orderTotal + cartTotal.delivery,
-            delivery_address_id: selectedAddress,
+            shipping_fee: isStorePickup ? 0 : cartTotal.delivery,
+            total: orderTotal + (isStorePickup ? 0 : cartTotal.delivery),
+            delivery_address_id: isStorePickup ? null : selectedAddress,
             order_number: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             status: "pending",
             payment_status: paymentMethod === "cod" ? "cod" : "paid",
+            is_store_pickup: isStorePickup,
+            pickup_date: isStorePickup ? pickupDate : null,
+            pickup_store_id: isStorePickup ? storeId : null,
           })
           .select()
           .single();
@@ -500,12 +508,64 @@ const CheckoutPage = () => {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
+            {/* Delivery Type Selection */}
+            {userRole === "customer" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Delivery Method</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <RadioGroup value={isStorePickup ? "pickup" : "delivery"} onValueChange={(value) => setIsStorePickup(value === "pickup")}>
+                    <div className="flex items-center space-x-2 rounded-lg border p-4">
+                      <RadioGroupItem value="delivery" id="delivery" />
+                      <Label htmlFor="delivery" className="flex-1 cursor-pointer">
+                        <div className="font-semibold">Home Delivery</div>
+                        <div className="text-sm text-muted-foreground">Get it delivered to your doorstep</div>
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2 rounded-lg border p-4">
+                      <RadioGroupItem value="pickup" id="pickup" />
+                      <Label htmlFor="pickup" className="flex-1 cursor-pointer">
+                        <div className="font-semibold">Store Pickup</div>
+                        <div className="text-sm text-muted-foreground">Pick up from store - No delivery charges</div>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pickup Date Selection */}
+            {isStorePickup && userRole === "customer" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Select Pickup Date</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="pickupDate">Pickup Date</Label>
+                    <Input
+                      id="pickupDate"
+                      type="date"
+                      value={pickupDate}
+                      onChange={(e) => setPickupDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      required
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      You can pick up your order from the retailer's store on your selected date.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {useLiveLocation ? (
               <LiveLocationAddressForm
                 onSuccess={handleLiveLocationSuccess}
                 onCancel={() => setUseLiveLocation(false)}
               />
-            ) : (
+            ) : !isStorePickup && (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Delivery Address</CardTitle>
@@ -654,9 +714,26 @@ const CheckoutPage = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Delivery</span>
-                  <span className="font-semibold">₹{cartTotal.delivery.toFixed(2)}</span>
+                  <span className="font-semibold">
+                    {isStorePickup ? "Free" : `₹${cartTotal.delivery.toFixed(2)}`}
+                  </span>
                 </div>
-                {estimatedDelivery && (
+                {isStorePickup && pickupDate && (
+                  <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                    <Package className="h-4 w-4 text-primary" />
+                    <div className="text-sm">
+                      <div className="font-medium">Store Pickup</div>
+                      <div className="text-muted-foreground">
+                        {new Date(pickupDate).toLocaleDateString('en-IN', { 
+                          day: 'numeric', 
+                          month: 'long', 
+                          year: 'numeric' 
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {estimatedDelivery && !isStorePickup && (
                   <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
                     <Package className="h-4 w-4 text-primary" />
                     <div className="text-sm">
@@ -668,13 +745,13 @@ const CheckoutPage = () => {
                 <div className="border-t pt-4">
                   <div className="flex justify-between text-lg font-bold">
                     <span>Total</span>
-                    <span>₹{cartTotal.total.toFixed(2)}</span>
+                    <span>₹{(cartTotal.subtotal + (isStorePickup ? 0 : cartTotal.delivery)).toFixed(2)}</span>
                   </div>
                 </div>
                 <Button 
                   className="w-full" 
                   onClick={initiateOrder}
-                  disabled={loading || addresses.length === 0 || cartItems.length === 0}
+                  disabled={loading || (!isStorePickup && addresses.length === 0) || cartItems.length === 0 || (isStorePickup && !pickupDate)}
                 >
                   {loading ? "Processing..." : "Place Order"}
                 </Button>

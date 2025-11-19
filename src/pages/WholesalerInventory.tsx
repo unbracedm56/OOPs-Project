@@ -6,7 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import WholesalerLayout from "@/components/WholesalerLayout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -218,23 +219,17 @@ export default function WholesalerInventory() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate("/dashboard")}>
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <h1 className="text-2xl font-bold">Manage Inventory</h1>
-            </div>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Product
-                </Button>
-              </DialogTrigger>
+    <WholesalerLayout 
+      activePage="inventory" 
+      title="Manage Inventory"
+      headerActions={
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Product
+            </Button>
+          </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Add New Product to Inventory</DialogTitle>
@@ -304,11 +299,9 @@ export default function WholesalerInventory() {
                 </form>
               </DialogContent>
             </Dialog>
-          </div>
-        </div>
-      </header>
+          }
+        >
 
-      <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 gap-6">
           {inventory.map((item) => (
             <Card key={item.id}>
@@ -397,7 +390,6 @@ export default function WholesalerInventory() {
             </Card>
           ))}
         </div>
-      </div>
-    </div>
+    </WholesalerLayout>
   );
 }
