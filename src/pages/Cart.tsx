@@ -209,10 +209,10 @@ const Cart = () => {
 
   return (
     <div className="min-h-screen bg-muted/30">
-            <AmazonHeader 
-        cartCount={cartCount}
+      <AmazonHeader 
+        cartCount={cartItems.length}
         wishlistCount={wishlistCount}
-        userName={profile?.full_name?.split(" ")[0]}
+        userName={userName}
         onSignOut={handleSignOut}
         userRole={userRole || "customer"}
       />
