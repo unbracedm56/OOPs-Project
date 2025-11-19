@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AmazonHeader, AmazonFooter, AmazonProductCard } from "@/components/amazon";
+import { ProductFilters } from "@/components/ProductFilters";
+import { Button } from "@/components/ui/button";
 import { User } from "@supabase/supabase-js";
 import { Layers } from "lucide-react";
 
@@ -12,9 +14,31 @@ const CategoryPage = () => {
   const [profile, setProfile] = useState<any>(null);
   const [category, setCategory] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [cartCount, setCartCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  
+  // Filter states
+  const [minPrice, setMinPrice] = useState(0);
+  const [maxPrice, setMaxPrice] = useState(10000);
+  const [inStockOnly, setInStockOnly] = useState(false);
+  const [location, setLocation] = useState("");
+  const [userLat, setUserLat] = useState<number | null>(null);
+  const [userLng, setUserLng] = useState<number | null>(null);
+
+  // Calculate distance between two coordinates using Haversine formula
+  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in kilometers
+  };
 
   useEffect(() => {
     checkUser();
@@ -27,7 +51,7 @@ const CategoryPage = () => {
       fetchWishlistCount();
       fetchCartCount();
     }
-  }, [user, categoryId]);
+  }, [user, categoryId, userLat, userLng]);
 
   const checkUser = async () => {
     const {
@@ -66,7 +90,8 @@ const CategoryPage = () => {
     }
 
     try {
-      const { data, error } = await supabase
+      // Build the query
+      let query = supabase
         .from("inventory")
         .select(
           `
@@ -75,6 +100,7 @@ const CategoryPage = () => {
           mrp,
           stock_qty,
           is_active,
+          store_id,
           products:product_id (
             id,
             name,
@@ -91,10 +117,86 @@ const CategoryPage = () => {
         .eq("products.category_id", categoryId)
         .order("created_at", { ascending: false });
 
+      const { data, error } = await query;
+
       if (error) throw error;
 
       if (data) {
-        setProducts(data.filter((item) => item.products !== null));
+        // Get unique store IDs
+        const storeIds = [...new Set(data.map(item => item.store_id).filter(Boolean))];
+        
+        // Fetch stores with addresses
+        let storesQuery = supabase
+          .from("stores")
+          .select(`
+            id,
+            name,
+            type,
+            address_id,
+            addresses:address_id (
+              lat,
+              lng,
+              city,
+              pincode
+            )
+          `)
+          .in("id", storeIds);
+        
+        // Filter by store type based on user role
+        if (profile?.role === "customer") {
+          storesQuery = storesQuery.eq("type", "retailer");
+        } else if (profile?.role === "retailer") {
+          storesQuery = storesQuery.eq("type", "wholesaler");
+        }
+
+        const { data: storesData } = await storesQuery;
+
+        // Create a map of stores by ID
+        const storesMap = new Map(storesData?.map(store => [store.id, store]) || []);
+
+        // Map products with store data and calculate distances
+        // Filter out products from non-matching store types
+        const productsWithDistance = data
+          .filter((item) => {
+            if (!item.products) return false;
+            // For customers, only show retailer products
+            // For retailers, only show wholesaler products
+            if (profile?.role === "customer" || profile?.role === "retailer") {
+              return storesMap.has(item.store_id);
+            }
+            return true;
+          })
+          .map((item) => {
+            const store = storesMap.get(item.store_id);
+            const storeAddress = store?.addresses;
+            let distance = undefined;
+            
+            if (userLat && userLng && storeAddress?.lat && storeAddress?.lng) {
+              distance = calculateDistance(
+                userLat,
+                userLng,
+                Number(storeAddress.lat),
+                Number(storeAddress.lng)
+              );
+            }
+            
+            return {
+              ...item,
+              store: store ? {
+                id: store.id,
+                name: store.name,
+                address: storeAddress ? {
+                  lat: Number(storeAddress.lat),
+                  lng: Number(storeAddress.lng),
+                  city: storeAddress.city,
+                  pincode: storeAddress.pincode,
+                } : undefined,
+              } : undefined,
+              distance,
+            };
+          });
+        
+        setProducts(productsWithDistance);
       }
     } catch (error) {
       console.error("Error fetching products:", error);
@@ -147,6 +249,49 @@ const CategoryPage = () => {
     return "/placeholder.svg";
   };
 
+  const applyFilters = () => {
+    let filtered = [...products];
+    
+    // Filter by price range
+    filtered = filtered.filter(item => {
+      const price = item.price || 0;
+      return price >= minPrice && price <= maxPrice;
+    });
+    
+    // Filter by stock availability
+    if (inStockOnly) {
+      filtered = filtered.filter(item => (item.stock_qty || 0) > 0);
+    }
+    
+    // Location filter - sort by distance without removing products
+    if (location.trim() && userLat && userLng) {
+      // Sort by distance - closest stores first
+      filtered = filtered.sort((a, b) => {
+        const distA = a.distance ?? Infinity;
+        const distB = b.distance ?? Infinity;
+        return distA - distB;
+      });
+    }
+    
+    setFilteredProducts(filtered);
+  };
+
+  const handleClearFilters = () => {
+    setMinPrice(0);
+    setMaxPrice(10000);
+    setInStockOnly(false);
+    setLocation("");
+    setUserLat(null);
+    setUserLng(null);
+  };
+
+  const hasActiveFilters = minPrice > 0 || maxPrice < 10000 || inStockOnly || location.trim() !== "";
+
+  // Apply filters whenever filter values or products change
+  useEffect(() => {
+    applyFilters();
+  }, [minPrice, maxPrice, inStockOnly, location, products]);
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate("/");
@@ -188,9 +333,56 @@ const CategoryPage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {products.map((item: any) => {
-              const product = item.products;
+          <div className="flex gap-6">
+            {/* Filters Sidebar */}
+            {filteredProducts.length > 0 && (
+              <div className="hidden lg:block w-64 flex-shrink-0">
+                <ProductFilters
+                  minPrice={minPrice}
+                  maxPrice={maxPrice}
+                  inStockOnly={inStockOnly}
+                  location={location}
+                  onMinPriceChange={setMinPrice}
+                  onMaxPriceChange={setMaxPrice}
+                  onInStockChange={setInStockOnly}
+                  onLocationChange={setLocation}
+                  onUserLocationChange={(lat, lng) => {
+                    setUserLat(lat);
+                    setUserLng(lng);
+                  }}
+                  onClearFilters={handleClearFilters}
+                  hasActiveFilters={hasActiveFilters}
+                />
+              </div>
+            )}
+
+            {/* Products Grid */}
+            <div className="flex-1">
+              {filteredProducts.length === 0 ? (
+                <div className="text-center py-16">
+                  <p className="text-xl text-muted-foreground">
+                    {products.length === 0 
+                      ? "No products found in this category" 
+                      : "No products match your filters"}
+                  </p>
+                  {hasActiveFilters && (
+                    <Button
+                      variant="outline"
+                      onClick={handleClearFilters}
+                      className="mt-4"
+                    >
+                      Clear Filters
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="mb-4 text-sm text-muted-foreground">
+                    Showing {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredProducts.map((item: any) => {
+                      const product = item.products;
 
               return (
                 <AmazonProductCard
@@ -221,6 +413,10 @@ const CategoryPage = () => {
               </p>
             </div>
           )}
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </main>
 

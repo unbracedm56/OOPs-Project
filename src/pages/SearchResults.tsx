@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AmazonHeader } from "@/components/amazon/AmazonHeader";
 import { AmazonFooter } from "@/components/amazon/AmazonFooter";
 import { AmazonProductCard } from "@/components/amazon/AmazonProductCard";
+import { ProductFilters } from "@/components/ProductFilters";
 import { Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,6 +14,7 @@ interface Product {
   mrp: number;
   stock_qty: number;
   is_active: boolean;
+  store_id: string;
   products: {
     id: string;
     name: string;
@@ -22,6 +24,17 @@ interface Product {
     brand: string;
     category_id: string;
   };
+  store?: {
+    id: string;
+    name: string;
+    address?: {
+      lat: number;
+      lng: number;
+      city: string;
+      pincode: string;
+    };
+  };
+  distance?: number;
 }
 
 export default function SearchResults() {
@@ -31,10 +44,32 @@ export default function SearchResults() {
   const { toast } = useToast();
   
   const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
+  
+  // Filter states
+  const [minPrice, setMinPrice] = useState(0);
+  const [maxPrice, setMaxPrice] = useState(10000);
+  const [inStockOnly, setInStockOnly] = useState(false);
+  const [location, setLocation] = useState("");
+  const [userLat, setUserLat] = useState<number | null>(null);
+  const [userLng, setUserLng] = useState<number | null>(null);
+
+  // Calculate distance between two coordinates using Haversine formula
+  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in kilometers
+  };
 
   useEffect(() => {
     fetchProfile();
@@ -46,9 +81,14 @@ export default function SearchResults() {
       searchProducts();
     } else {
       setProducts([]);
+      setFilteredProducts([]);
       setLoading(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, userLat, userLng]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [products, minPrice, maxPrice, inStockOnly, location]);
 
   const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -175,7 +215,7 @@ export default function SearchResults() {
       // Get product IDs
       const productIds = scoredProducts.map(p => p.id);
 
-      // Now get inventory for these products
+      // Now get inventory for these products with store location data
       const { data: inventoryData, error: inventoryError } = await supabase
         .from("inventory")
         .select(`
@@ -184,7 +224,8 @@ export default function SearchResults() {
           mrp,
           stock_qty,
           is_active,
-          product_id
+          product_id,
+          store_id
         `)
         .in("product_id", productIds)
         .eq("is_active", true)
@@ -192,20 +233,89 @@ export default function SearchResults() {
 
       if (inventoryError) throw inventoryError;
 
+      // Get unique store IDs
+      const storeIds = [...new Set(inventoryData?.map(item => item.store_id).filter(Boolean) || [])];
+      
+      // Fetch stores with addresses separately
+      let storesQuery = supabase
+        .from("stores")
+        .select(`
+          id,
+          name,
+          type,
+          address_id,
+          addresses:address_id (
+            lat,
+            lng,
+            city,
+            pincode
+          )
+        `)
+        .in("id", storeIds);
+      
+      // Filter by store type based on user role
+      if (profile?.role === "customer") {
+        storesQuery = storesQuery.eq("type", "retailer");
+      } else if (profile?.role === "retailer") {
+        storesQuery = storesQuery.eq("type", "wholesaler");
+      }
+
+      const { data: storesData } = await storesQuery;
+
+      // Create a map of stores by ID
+      const storesMap = new Map(storesData?.map(store => [store.id, store]) || []);
+
       // Combine products with their inventory, maintaining relevance order
       const productMap = new Map(scoredProducts.map(p => [p.id, p]));
       const combinedData = (inventoryData || [])
+        .filter(inv => {
+          // Filter products based on user role:
+          // - Customers see only retailer products
+          // - Retailers see only wholesaler products
+          if (profile?.role === "customer" || profile?.role === "retailer") {
+            return storesMap.has(inv.store_id);
+          }
+          return true;
+        })
         .map(inv => {
           const product = productMap.get(inv.product_id);
-          return product ? {
+          if (!product) return null;
+          
+          const store = storesMap.get(inv.store_id);
+          const storeAddress = store?.addresses;
+          let distance = undefined;
+          
+          // Calculate distance if user location and store location are available
+          if (userLat && userLng && storeAddress?.lat && storeAddress?.lng) {
+            distance = calculateDistance(
+              userLat,
+              userLng,
+              Number(storeAddress.lat),
+              Number(storeAddress.lng)
+            );
+          }
+          
+          return {
             id: inv.id,
             price: inv.price,
             mrp: inv.mrp,
             stock_qty: inv.stock_qty,
             is_active: inv.is_active,
+            store_id: inv.store_id,
             products: product,
+            store: store ? {
+              id: store.id,
+              name: store.name,
+              address: storeAddress ? {
+                lat: Number(storeAddress.lat),
+                lng: Number(storeAddress.lng),
+                city: storeAddress.city,
+                pincode: storeAddress.pincode,
+              } : undefined,
+            } : undefined,
+            distance,
             relevanceScore: product.relevanceScore
-          } : null;
+          };
         })
         .filter(item => item !== null)
         .sort((a, b) => (b?.relevanceScore || 0) - (a?.relevanceScore || 0));
@@ -223,6 +333,44 @@ export default function SearchResults() {
       setLoading(false);
     }
   };
+
+  const applyFilters = () => {
+    let filtered = [...products];
+
+    // Price filter
+    filtered = filtered.filter(
+      (item) => item.price >= minPrice && item.price <= maxPrice
+    );
+
+    // Stock filter
+    if (inStockOnly) {
+      filtered = filtered.filter((item) => item.stock_qty > 0);
+    }
+
+    // Location filter - sort by distance without removing products
+    if (location.trim() && userLat && userLng) {
+      // Sort by distance - closest stores first
+      filtered = filtered.sort((a, b) => {
+        const distA = a.distance ?? Infinity;
+        const distB = b.distance ?? Infinity;
+        return distA - distB;
+      });
+    }
+
+    setFilteredProducts(filtered);
+  };
+
+  const handleClearFilters = () => {
+    setMinPrice(0);
+    setMaxPrice(10000);
+    setInStockOnly(false);
+    setLocation("");
+    setUserLat(null);
+    setUserLng(null);
+  };
+
+  const hasActiveFilters =
+    minPrice > 0 || maxPrice < 10000 || inStockOnly || location.trim() !== "";
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -262,7 +410,7 @@ export default function SearchResults() {
             {searchQuery ? (
               <>
                 Showing results for <span className="font-semibold text-foreground">"{searchQuery}"</span>
-                {!loading && <span className="text-sm">({products.length} {products.length === 1 ? 'result' : 'results'})</span>}
+                {!loading && <span className="text-sm">({filteredProducts.length} {filteredProducts.length === 1 ? 'result' : 'results'})</span>}
               </>
             ) : (
               "Enter a search query to find products"
@@ -270,6 +418,32 @@ export default function SearchResults() {
           </p>
         </div>
 
+        {/* Main Content with Filters */}
+        <div className="flex gap-6">
+          {/* Sidebar Filters */}
+          {searchQuery && !loading && products.length > 0 && (
+            <aside className="w-64 flex-shrink-0 hidden lg:block">
+              <ProductFilters
+                minPrice={minPrice}
+                maxPrice={maxPrice}
+                onMinPriceChange={setMinPrice}
+                onMaxPriceChange={setMaxPrice}
+                inStockOnly={inStockOnly}
+                onInStockChange={setInStockOnly}
+                location={location}
+                onLocationChange={setLocation}
+                onUserLocationChange={(lat, lng) => {
+                  setUserLat(lat);
+                  setUserLng(lng);
+                }}
+                onClearFilters={handleClearFilters}
+                hasActiveFilters={hasActiveFilters}
+              />
+            </aside>
+          )}
+
+          {/* Results Section */}
+          <div className="flex-1">
         {/* Loading State */}
         {loading && (
           <div className="flex justify-center items-center py-20">
@@ -291,6 +465,15 @@ export default function SearchResults() {
         )}
 
         {/* No Results */}
+        {searchQuery && !loading && filteredProducts.length === 0 && products.length > 0 && (
+          <div className="text-center py-20">
+            <h3 className="text-xl font-semibold mb-2">No Products Match Your Filters</h3>
+            <p className="text-muted-foreground mb-4">
+              Try adjusting your filters to see more results
+            </p>
+          </div>
+        )}
+
         {searchQuery && !loading && products.length === 0 && (
           <div className="text-center py-20">
             <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mb-6">
@@ -307,9 +490,9 @@ export default function SearchResults() {
         )}
 
         {/* Results Grid */}
-        {!loading && products.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {products.map((item) => {
+        {!loading && filteredProducts.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {filteredProducts.map((item) => {
               const product = item.products;
               if (!product) return null;
               
@@ -337,6 +520,8 @@ export default function SearchResults() {
             })}
           </div>
         )}
+        </div>
+      </div>
       </main>
 
       <AmazonFooter />
