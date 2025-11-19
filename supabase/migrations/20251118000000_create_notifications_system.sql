@@ -57,9 +57,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION notify_order_created() RETURNS TRIGGER AS $$
 BEGIN
   PERFORM create_notification(
-    NEW.user_id,
+    NEW.customer_id,
     'Order Placed Successfully',
-    'Your order #' || NEW.id || ' has been placed successfully. Total: ₹' || NEW.total,
+    'Your order #' || NEW.order_number || ' has been placed successfully. Total: ₹' || NEW.total,
     'order',
     '/orders'
   );
@@ -72,9 +72,9 @@ CREATE OR REPLACE FUNCTION notify_order_status_changed() RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.status != OLD.status THEN
     PERFORM create_notification(
-      NEW.user_id,
+      NEW.customer_id,
       'Order Status Updated',
-      'Your order #' || NEW.id || ' status changed to: ' || NEW.status,
+      'Your order #' || NEW.order_number || ' status changed to: ' || NEW.status,
       'order',
       '/orders'
     );
@@ -88,9 +88,9 @@ CREATE OR REPLACE FUNCTION notify_payment_status_changed() RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.payment_status != OLD.payment_status THEN
     PERFORM create_notification(
-      NEW.user_id,
+      NEW.customer_id,
       'Payment Status Updated',
-      'Your payment for order #' || NEW.id || ' is now: ' || NEW.payment_status,
+      'Your payment for order #' || NEW.order_number || ' is now: ' || NEW.payment_status,
       'payment',
       '/orders'
     );
