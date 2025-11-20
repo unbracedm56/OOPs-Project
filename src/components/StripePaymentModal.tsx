@@ -109,8 +109,8 @@ const StripePaymentModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <div className="p-2 rounded-lg bg-primary/10">
               <CreditCard className="h-5 w-5 text-primary" />
@@ -123,7 +123,7 @@ const StripePaymentModal = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-4">
+        <div className="py-4 overflow-y-auto flex-1 scrollbar-hide">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
