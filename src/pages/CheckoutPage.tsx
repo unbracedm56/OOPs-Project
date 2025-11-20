@@ -10,6 +10,7 @@ import { ArrowLeft, Plus, Package, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import PaymentModal from "@/components/PaymentModal";
+import StripePaymentModal from "@/components/StripePaymentModal";
 import LiveLocationAddressForm from "@/components/LiveLocationAddressForm";
 
 const CheckoutPage = () => {
@@ -22,9 +23,11 @@ const CheckoutPage = () => {
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [cartTotal, setCartTotal] = useState({ subtotal: 0, delivery: 5, total: 5 });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showStripeModal, setShowStripeModal] = useState(false);
   const [savedPayments, setSavedPayments] = useState<any[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("");
   const [useNewPayment, setUseNewPayment] = useState(false);
+  const [savePaymentMethod, setSavePaymentMethod] = useState(false);
   const [estimatedDelivery, setEstimatedDelivery] = useState("");
   const [useLiveLocation, setUseLiveLocation] = useState(false);
   const [userRole, setUserRole] = useState("");
@@ -173,7 +176,7 @@ const CheckoutPage = () => {
   };
 
   const initiateOrder = () => {
-    if (!selectedAddress) {
+    if (!selectedAddress && !isStorePickup) {
       toast({
         title: "Error",
         description: "Please select a delivery address",
@@ -194,22 +197,20 @@ const CheckoutPage = () => {
     // For COD, process directly
     if (paymentMethod === "cod") {
       processOrder();
+    } else if (paymentMethod === "card") {
+      // Use Stripe for card payments
+      setShowStripeModal(true);
     } else {
-      // Check if using saved payment or new payment
-      // If there are no saved payments, or user chose to use new payment, allow proceeding
-      if (savedPayments.length > 0 && !useNewPayment && !selectedPaymentMethod) {
-        toast({
-          title: "Error",
-          description: "Please select a payment method",
-          variant: "destructive",
-        });
-        return;
-      }
-      setShowPaymentModal(true);
+      // Removed bank transfer option - only card and COD supported
+      toast({
+        title: "Error",
+        description: "Please select a valid payment method",
+        variant: "destructive",
+      });
     }
   };
 
-  const processOrder = async () => {
+  const processOrder = async (stripePaymentMethodId?: string) => {
     setLoading(true);
 
     try {
@@ -250,6 +251,7 @@ const CheckoutPage = () => {
             order_number: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             status: "pending",
             payment_status: paymentMethod === "cod" ? "cod" : "paid",
+            payment_method_id: stripePaymentMethodId || null,
             is_store_pickup: isStorePickup,
             pickup_date: isStorePickup ? pickupDate : null,
             pickup_store_id: isStorePickup ? storeId : null,
@@ -632,11 +634,7 @@ const CheckoutPage = () => {
                 <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="card" id="card" />
-                    <Label htmlFor="card">Credit/Debit Card</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="bank" id="bank" />
-                    <Label htmlFor="bank">Bank Transfer</Label>
+                    <Label htmlFor="card">Credit/Debit Card (via Stripe)</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="cod" id="cod" />
@@ -644,59 +642,34 @@ const CheckoutPage = () => {
                   </div>
                 </RadioGroup>
 
-                {paymentMethod !== "cod" && (
+                {paymentMethod === "card" && (
                   <>
                     <Separator />
-                    {savedPayments.length > 0 && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Label>Saved Payment Methods</Label>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate("/profile?tab=payments")}
-                          >
-                            Manage
-                          </Button>
-                        </div>
-                        <RadioGroup 
-                          value={useNewPayment ? "new" : selectedPaymentMethod} 
-                          onValueChange={(value) => {
-                            if (value === "new") {
-                              setUseNewPayment(true);
-                            } else {
-                              setUseNewPayment(false);
-                              setSelectedPaymentMethod(value);
-                            }
-                          }}
-                        >
-                          {savedPayments.map((payment) => (
-                            <div key={payment.id} className="flex items-start space-x-2 rounded-lg border p-3">
-                              <RadioGroupItem value={payment.id} id={payment.id} />
-                              <Label htmlFor={payment.id} className="flex-1 cursor-pointer">
-                                <div className="font-medium">{payment.label}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {payment.payment_type === "card" ? "Card" : "Bank"} ending in {payment.last_four}
-                                </div>
-                              </Label>
-                            </div>
-                          ))}
-                          <div className="flex items-center space-x-2 rounded-lg border p-3">
-                            <RadioGroupItem value="new" id="new" />
-                            <Label htmlFor="new" className="flex items-center gap-2 cursor-pointer">
-                              <Plus className="h-4 w-4" />
-                              Use a new payment method
-                            </Label>
-                          </div>
-                        </RadioGroup>
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="saveCard"
+                          checked={savePaymentMethod}
+                          onChange={(e) => setSavePaymentMethod(e.target.checked)}
+                          className="rounded border-gray-300"
+                        />
+                        <Label htmlFor="saveCard" className="text-sm cursor-pointer">
+                          Save this card for future purchases
+                        </Label>
                       </div>
-                    )}
-                    {savedPayments.length === 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        No saved payment methods. You'll be able to save your payment details during checkout.
+                      <p className="text-xs text-muted-foreground">
+                        Your card details will be securely stored by Stripe and can be managed in your profile.
                       </p>
-                    )}
+                    </div>
                   </>
+                )}
+
+                {paymentMethod === "cod" && (
+                  <div className="rounded-lg bg-amber-50 p-3 text-sm">
+                    <p className="font-medium text-amber-900">Pay when you receive</p>
+                    <p className="text-amber-700 mt-1">Cash on delivery fee may apply</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -769,6 +742,21 @@ const CheckoutPage = () => {
         paymentMethod={paymentMethod}
         amount={cartTotal.total}
         savedPaymentId={!useNewPayment && selectedPaymentMethod ? selectedPaymentMethod : undefined}
+      />
+
+      <StripePaymentModal
+        open={showStripeModal}
+        onClose={() => setShowStripeModal(false)}
+        amount={cartTotal.subtotal + (isStorePickup ? 0 : cartTotal.delivery)}
+        onSuccess={async (paymentMethodId?: string) => {
+          setShowStripeModal(false);
+          await processOrder(paymentMethodId);
+        }}
+        onFailure={() => {
+          setShowStripeModal(false);
+          navigate("/payment-failed");
+        }}
+        savePaymentMethod={savePaymentMethod}
       />
     </div>
   );
