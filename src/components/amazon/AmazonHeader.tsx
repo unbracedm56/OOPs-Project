@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { SearchHistory } from "@/components/SearchHistory";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,11 +47,14 @@ export const AmazonHeader = ({
   const searchRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCategoryIds();
     fetchSavedAddresses();
     fetchNotificationCount();
+    loadUserAndHistory();
     
     // Click outside handler for autocomplete
     const handleClickOutside = (event: MouseEvent) => {
@@ -167,6 +171,7 @@ export const AmazonHeader = ({
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
+      saveToSearchHistory(searchQuery.trim());
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
       setShowSuggestions(false);
     }
@@ -345,6 +350,64 @@ export const AmazonHeader = ({
     setShowSuggestions(false);
   };
 
+  const loadUserAndHistory = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setUserId(user.id);
+      await loadSearchHistory(user.id);
+    }
+  };
+
+  const loadSearchHistory = async (uid: string) => {
+    const searchContext = userRole === 'retailer' ? 'wholesaler-marketplace' : 'customer-dashboard';
+    const { data, error } = await supabase
+      .from("search_history")
+      .select("search_query")
+      .eq("user_id", uid)
+      .eq("search_context", searchContext)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (!error && data) {
+      const uniqueQueries = [...new Set(data.map(item => item.search_query))];
+      setSearchHistory(uniqueQueries);
+    }
+  };
+
+  const saveToSearchHistory = async (searchTerm: string) => {
+    if (!searchTerm.trim() || !userId) return;
+
+    const searchContext = userRole === 'retailer' ? 'wholesaler-marketplace' : 'customer-dashboard';
+    await supabase
+      .from("search_history")
+      .insert({
+        user_id: userId,
+        search_query: searchTerm,
+        search_context: searchContext,
+      });
+
+    // Update local state
+    const newHistory = [
+      searchTerm,
+      ...searchHistory.filter(item => item !== searchTerm),
+    ].slice(0, 10);
+    setSearchHistory(newHistory);
+  };
+
+  const removeFromHistory = async (searchTerm: string) => {
+    if (!userId) return;
+    
+    const searchContext = userRole === 'retailer' ? 'wholesaler-marketplace' : 'customer-dashboard';
+    await supabase
+      .from("search_history")
+      .delete()
+      .eq("user_id", userId)
+      .eq("search_query", searchTerm)
+      .eq("search_context", searchContext);
+
+    setSearchHistory(searchHistory.filter(item => item !== searchTerm));
+  };
+
   const fetchNotificationCount = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -406,8 +469,9 @@ export const AmazonHeader = ({
                   value={searchQuery}
                   onChange={handleSearchInputChange}
                   onFocus={() => {
-                    if (suggestions.length > 0) setShowSuggestions(true);
+                    setShowSuggestions(true);
                   }}
+                  onClick={() => setShowSuggestions(true)}
                 />
                 {searchQuery && (
                   <button
@@ -425,6 +489,40 @@ export const AmazonHeader = ({
                     {isSearching ? (
                       <div className="p-4 text-center text-muted-foreground">
                         Searching...
+                      </div>
+                    ) : searchHistory.length > 0 && !searchQuery.trim() ? (
+                      <div className="py-2">
+                        <div className="flex items-center justify-between px-4 py-2">
+                          <span className="text-xs font-semibold text-muted-foreground">Recent Searches</span>
+                        </div>
+                        {searchHistory.map((item, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between px-4 py-3 hover:bg-muted cursor-pointer transition-colors group"
+                          >
+                            <div
+                              className="flex items-center gap-3 flex-1"
+                              onClick={() => {
+                                setSearchQuery(item);
+                                saveToSearchHistory(item);
+                                setShowSuggestions(false);
+                                navigate(`/search?q=${encodeURIComponent(item)}`);
+                              }}
+                            >
+                              <Search className="h-4 w-4 text-muted-foreground" />
+                              <span>{item}</span>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeFromHistory(item);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     ) : suggestions.length > 0 ? (
                       <div className="py-2">

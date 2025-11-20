@@ -17,6 +17,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useEffect as useRealtimeEffect } from "react";
 import { useLocationFilter } from "@/hooks/useLocationFilter";
 import { ContinueShoppingCarousel } from "@/components/ContinueShoppingCarousel";
+import { SearchHistory } from "@/components/SearchHistory";
 
 const CustomerDashboard = () => {
   const navigate = useNavigate();
@@ -328,16 +329,12 @@ const CustomerDashboard = () => {
         {/* Search Bar and Filters */}
         <div className="mb-6 flex flex-col gap-4">
           <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+            <SearchHistory
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search products..."
+              searchContext="customer-dashboard"
+            />
             
             {/* Location Filter Card */}
             <Card className="p-4">
