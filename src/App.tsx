@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import VerifyOTP from "./pages/VerifyOTP";
 import Dashboard from "./pages/Dashboard";
 import RoleSelection from "./pages/RoleSelection";
 import CustomerDashboard from "./pages/CustomerDashboardNew";
@@ -65,6 +66,7 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/verify-otp" element={<VerifyOTP />} />
           <Route path="/role-selection" element={<RoleSelection />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/customer-dashboard" element={<CustomerDashboard />} />

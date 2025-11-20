@@ -68,18 +68,18 @@ const Auth = () => {
             full_name: fullName,
             role: role,
           },
-          emailRedirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
       if (error) throw error;
 
       toast({
-        title: "Account created!",
-        description: "Welcome to the marketplace. Redirecting...",
+        title: "Verification code sent!",
+        description: "Please check your email for the verification code.",
       });
 
-      setTimeout(() => navigate("/dashboard"), 1500);
+      // Redirect to OTP verification page with email
+      navigate(`/verify-otp?email=${encodeURIComponent(email)}`);
     } catch (error: any) {
       toast({
         title: "Error",
