@@ -320,9 +320,23 @@ const CategoryPage = () => {
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8">
           <div className="mb-8 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-primary to-secondary">
-              <Layers className="h-8 w-8 text-white" />
-            </div>
+            {category?.image_url ? (
+              <div className="h-20 w-20 rounded-xl overflow-hidden bg-muted flex-shrink-0">
+                <img 
+                  src={sanitizeImageUrl(category.image_url)} 
+                  alt={category.name}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement!.innerHTML = '<div class="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary to-secondary"><svg class="h-10 w-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg></div>';
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-gradient-to-br from-primary to-secondary">
+                <Layers className="h-8 w-8 text-white" />
+              </div>
+            )}
             <div>
               <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
                 {category?.name || "Category"}

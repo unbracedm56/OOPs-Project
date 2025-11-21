@@ -91,6 +91,39 @@ const Categories = () => {
     navigate("/");
   };
 
+  const getCategoryImage = (category: any) => {
+    // If category has an image_url, use it
+    if (category.image_url) {
+      return category.image_url.replace(/^http:/, "https:");
+    }
+    
+    // Default images based on category name
+    const categoryName = category.name?.toLowerCase() || '';
+    const defaultImages: Record<string, string> = {
+      'electronics': 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400&h=400&fit=crop',
+      'clothing': 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=400&h=400&fit=crop',
+      'fashion': 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=400&h=400&fit=crop',
+      'home': 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?w=400&h=400&fit=crop',
+      'kitchen': 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=400&h=400&fit=crop',
+      'sports': 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=400&h=400&fit=crop',
+      'books': 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=400&h=400&fit=crop',
+      'toys': 'https://images.unsplash.com/photo-1558060370-d644479cb6f7?w=400&h=400&fit=crop',
+      'beauty': 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop',
+      'grocery': 'https://images.unsplash.com/photo-1543168256-418811576931?w=400&h=400&fit=crop',
+      'food': 'https://images.unsplash.com/photo-1543168256-418811576931?w=400&h=400&fit=crop',
+    };
+    
+    // Find matching category
+    for (const [key, imageUrl] of Object.entries(defaultImages)) {
+      if (categoryName.includes(key)) {
+        return imageUrl;
+      }
+    }
+    
+    // Default placeholder
+    return 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400&h=400&fit=crop';
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <AmazonHeader
@@ -116,7 +149,7 @@ const Categories = () => {
               <AmazonCategoryCard
                 key={category.id}
                 title={category.name}
-                image="/placeholder.svg"
+                image={getCategoryImage(category)}
                 onClick={() => navigate(`/category/${category.id}`)}
               />
             ))}

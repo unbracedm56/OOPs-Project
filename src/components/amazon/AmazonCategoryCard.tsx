@@ -36,11 +36,16 @@ export const AmazonCategoryCard = ({
         </h3>
         <div className="aspect-square bg-gradient-to-br from-muted to-muted/50 rounded-xl overflow-hidden relative">
           <img
-            src={image}
+            src={image || 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400&h=400&fit=crop'}
             alt={title}
+            loading="lazy"
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
             onError={(e) => {
-              e.currentTarget.src = "/placeholder.svg";
+              const target = e.currentTarget;
+              // Prevent infinite loop by checking if we're already showing the fallback
+              if (!target.src.includes('unsplash.com/photo-1472851294608')) {
+                target.src = 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400&h=400&fit=crop';
+              }
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
