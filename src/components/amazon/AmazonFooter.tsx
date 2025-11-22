@@ -160,11 +160,11 @@ export const AmazonFooter = () => {
                 <Package className="h-5 w-5 text-white" />
               </div>
               <span className="text-xl font-bold">
-                <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">LocalMart</span>
+                <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Blitz Bazaar</span>
               </span>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-slate-400">
-              <span>© 2025 LocalMart. All rights reserved.</span>
+              <span>© 2025 Blitz Bazaar. All rights reserved.</span>
               <span className="hidden md:inline text-slate-700">|</span>
               <button className="hover:text-white hover:underline transition-colors">
                 Conditions of Use

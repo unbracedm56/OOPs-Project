@@ -144,9 +144,9 @@ export const InvoiceGenerator = ({ order }: InvoiceGeneratorProps) => {
       <body>
         <div class="header">
           <div class="company-info">
-            <h1>LocalMart</h1>
-            <p>Shop Local, Save More</p>
-            <p>support@localmart.com</p>
+            <h1>Blitz Bazaar</h1>
+            <p>Lightning deals, lasting thrills</p>
+            <p>support@blitzbazaar.com</p>
           </div>
           <div class="invoice-info">
             <h2>INVOICE</h2>
@@ -234,9 +234,9 @@ export const InvoiceGenerator = ({ order }: InvoiceGeneratorProps) => {
         </div>
 
         <div class="footer">
-          <p>Thank you for shopping with LocalMart!</p>
+          <p>Thank you for shopping with Blitz Bazaar!</p>
           <p>This is a computer-generated invoice and does not require a signature.</p>
-          <p>For any queries, please contact us at support@localmart.com</p>
+          <p>For any queries, please contact us at support@blitzbazaar.com</p>
         </div>
 
         <div style="text-align: center; margin-top: 30px;">

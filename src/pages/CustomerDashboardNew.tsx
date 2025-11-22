@@ -32,7 +32,7 @@ const CustomerDashboardNew = () => {
     {
       id: "1",
       image: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1920&h=600&fit=crop",
-      title: "Welcome to LocalMart",
+      title: "Welcome to Blitz Bazaar",
       description: "Discover amazing products from local retailers near you",
       ctaText: "Shop Now",
       ctaLink: "#products",

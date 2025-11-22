@@ -443,18 +443,19 @@ export const AmazonHeader = ({
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <div 
-            className="flex items-center gap-3 cursor-pointer group"
+            className="flex items-center gap-2 cursor-pointer group"
             onClick={() => navigate("/dashboard")}
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center group-hover:shadow-lg transition-shadow">
-              <Package className="h-6 w-6 text-white" />
-            </div>
-            <div className="hidden md:block">
-              <div className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                LocalMart
-              </div>
-              <div className="text-xs text-muted-foreground">Shop Local, Save More</div>
-            </div>
+            <img
+              src="/logos/blitz-bazaar-light.jpg"
+              alt="Blitz Bazaar"
+              className="h-12 md:h-14 w-auto object-contain dark:hidden"
+            />
+            <img
+              src="/logos/blitz-bazaar-dark.jpg"
+              alt="Blitz Bazaar"
+              className="h-12 md:h-14 w-auto object-contain hidden dark:block"
+            />
           </div>
 
           {/* Search Bar - Center */}

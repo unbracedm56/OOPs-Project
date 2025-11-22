@@ -54,16 +54,17 @@ function RetailerSidebar({ menuItems, profile }: { menuItems: any[], profile: an
         {/* Header with toggle button */}
         <div className="p-6 border-b flex items-center justify-between bg-card relative">
           <div className={`transition-all duration-200 ${open ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'}`}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center flex-shrink-0">
-                <Package className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <div className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  LocalMart
-                </div>
-                <div className="text-xs text-muted-foreground">Shop Local, Save More</div>
-              </div>
+            <div className="flex items-center gap-2">
+              <img
+                src="/logos/blitz-bazaar-light.jpg"
+                alt="Blitz Bazaar"
+                className="h-14 w-auto object-contain dark:hidden"
+              />
+              <img
+                src="/logos/blitz-bazaar-dark.jpg"
+                alt="Blitz Bazaar"
+                className="h-14 w-auto object-contain hidden dark:block"
+              />
             </div>
           </div>
         </div>
