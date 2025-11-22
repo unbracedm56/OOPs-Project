@@ -10,6 +10,7 @@ import { AmazonHeader } from "@/components/amazon/AmazonHeader";
 import { AmazonFooter } from "@/components/amazon/AmazonFooter";
 import { InvoiceGenerator } from "@/components/InvoiceGenerator";
 import { CalendarIntegration } from "@/components/CalendarIntegration";
+import { ReviewButton } from "@/components/ReviewButton";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ const OrderHistory = () => {
   const [wishlistCount, setWishlistCount] = useState(0);
   const [cartCount, setCartCount] = useState(0);
   const [userRole, setUserRole] = useState("");
+  const [reviewedItems, setReviewedItems] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     checkRoleAndFetchData();
@@ -184,6 +186,18 @@ const OrderHistory = () => {
 
       if (error) throw error;
 
+      // Fetch reviewed items for this user
+      const { data: reviewsData } = await supabase
+        .from("feedback")
+        .select("order_item_id")
+        .eq("author_id", user.id)
+        .not("order_item_id", "is", null);
+
+      const reviewedItemIds = new Set(
+        reviewsData?.map((r) => r.order_item_id).filter(Boolean) || []
+      );
+      setReviewedItems(reviewedItemIds);
+
       // Fetch warehouse addresses for all orders
       const ordersWithWarehouse = await Promise.all(
         (ordersData || []).map(async (order) => {
@@ -265,6 +279,7 @@ const OrderHistory = () => {
         cartCount={cartCount}
         wishlistCount={wishlistCount}
         userName={profile?.full_name?.split(" ")[0]}
+        avatarUrl={profile?.avatar_url}
         onSignOut={handleSignOut}
         userRole={userRole || "customer"}
       />
@@ -484,6 +499,15 @@ const OrderHistory = () => {
                                   <p className="text-sm font-semibold mt-1">
                                     ₹{item.unit_price} × {item.qty} = ₹{item.line_total.toFixed(2)}
                                   </p>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                  <ReviewButton
+                                    productId={item.product_id}
+                                    productName={item.inventory?.products?.name || 'Product'}
+                                    orderItemId={item.id}
+                                    hasReviewed={reviewedItems.has(item.id)}
+                                    orderStatus={order.order_status}
+                                  />
                                 </div>
                               </div>
                             ))}

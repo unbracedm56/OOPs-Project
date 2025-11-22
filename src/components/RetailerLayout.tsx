@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   PackageOpen,
   Store,
+  Star,
 } from "lucide-react";
 import {
   Sidebar,
@@ -39,7 +40,7 @@ import {
 interface RetailerLayoutProps {
   children: ReactNode;
   title: string;
-  activePage: "dashboard" | "inventory" | "products" | "wholesaler-marketplace" | "wholesaler-orders" | "customers";
+  activePage: "dashboard" | "inventory" | "products" | "wholesaler-marketplace" | "wholesaler-orders" | "customers" | "reviews";
   profile?: any;
   headerActions?: ReactNode;
 }
@@ -169,6 +170,12 @@ export default function RetailerLayout({ children, title, activePage, profile, h
       icon: Users,
       action: () => navigate("/view-customers"),
       active: activePage === "customers",
+    },
+    {
+      title: "Product Reviews",
+      icon: Star,
+      action: () => navigate("/retailer/reviews"),
+      active: activePage === "reviews",
     },
   ];
 

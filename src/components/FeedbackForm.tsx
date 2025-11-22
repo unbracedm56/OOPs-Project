@@ -34,6 +34,15 @@ const FeedbackForm = ({ productId, orderItemId, onSuccess }: FeedbackFormProps) 
       return;
     }
 
+    if (!title.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a review title",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -47,12 +56,15 @@ const FeedbackForm = ({ productId, orderItemId, onSuccess }: FeedbackFormProps) 
           order_item_id: orderItemId,
           author_id: user.id,
           rating,
-          title,
-          body,
+          title: title.trim(),
+          body: body.trim() || null,
           is_published: false
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
 
       toast({
         title: "Success",
@@ -63,11 +75,11 @@ const FeedbackForm = ({ productId, orderItemId, onSuccess }: FeedbackFormProps) 
       setTitle("");
       setBody("");
       onSuccess?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting feedback:", error);
       toast({
         title: "Error",
-        description: "Failed to submit review",
+        description: error.message || "Failed to submit review. Please try again.",
         variant: "destructive"
       });
     } finally {

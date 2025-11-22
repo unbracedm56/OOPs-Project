@@ -396,6 +396,7 @@ export default function SearchResults() {
         cartCount={cartCount}
         wishlistCount={wishlistCount}
         userName={profile?.full_name}
+        avatarUrl={profile?.avatar_url}
         onSignOut={handleSignOut}
       />
 

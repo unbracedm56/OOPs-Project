@@ -491,6 +491,7 @@ const RetailerWholesalerMarketplace = () => {
       <AmazonHeader
         wishlistCount={wishlistCount}
         cartCount={cartCount}
+        avatarUrl={profile?.avatar_url}
         onSignOut={() => setShowSignOutDialog(true)}
         userRole="retailer"
       />

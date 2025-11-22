@@ -1183,6 +1183,7 @@ const Profile = () => {
         cartCount={cartCount}
         wishlistCount={wishlistCount}
         userName={profile?.full_name?.split(" ")[0]}
+        avatarUrl={profile?.avatar_url}
         onSignOut={handleSignOut}
         userRole={userRole || "customer"}
       />

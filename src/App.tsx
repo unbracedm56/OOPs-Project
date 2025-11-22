@@ -47,6 +47,8 @@ import BestSellers from "./pages/BestSellers";
 import CategoryBySlug from "./pages/CategoryBySlug";
 import SearchResults from "./pages/SearchResults";
 import Notifications from "./pages/Notifications";
+import RetailerReviews from "./pages/RetailerReviews";
+import WholesalerReviews from "./pages/WholesalerReviews";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -76,8 +78,10 @@ const App = () => (
           <Route path="/retailer/products" element={<RetailerPurchasedProducts />} />
           <Route path="/retailer/proxy-orders" element={<RetailerProxyOrders />} />
           <Route path="/retailer/wholesaler-marketplace" element={<RetailerWholesalerMarketplace />} />
+          <Route path="/retailer/reviews" element={<RetailerReviews />} />
           <Route path="/wholesaler/inventory" element={<WholesalerInventory />} />
           <Route path="/wholesaler/proxy-orders" element={<WholesalerProxyOrders />} />
+          <Route path="/wholesaler/reviews" element={<WholesalerReviews />} />
           <Route path="/product/:slug" element={<ProductDetail />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/add-address" element={<AddAddress />} />

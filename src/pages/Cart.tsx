@@ -35,6 +35,7 @@ const Cart = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [userRole, setUserRole] = useState<string>("");
 
@@ -71,11 +72,14 @@ const Cart = () => {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, avatar_url")
         .eq("id", user.id)
         .single();
 
-      if (profile) setUserName(profile.full_name);
+      if (profile) {
+        setUserName(profile.full_name);
+        setAvatarUrl(profile.avatar_url);
+      }
 
       const { data: wishlist } = await supabase
         .from("wishlist")
@@ -213,6 +217,7 @@ const Cart = () => {
         cartCount={cartItems.length}
         wishlistCount={wishlistCount}
         userName={userName}
+        avatarUrl={avatarUrl}
         onSignOut={handleSignOut}
         userRole={userRole || "customer"}
       />

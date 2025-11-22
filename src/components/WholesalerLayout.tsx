@@ -13,6 +13,7 @@ import {
   UserCircle,
   LogOut,
   LayoutDashboard,
+  Star,
 } from "lucide-react";
 import {
   Sidebar,
@@ -36,7 +37,7 @@ import {
 interface WholesalerLayoutProps {
   children: ReactNode;
   title: string;
-  activePage: "dashboard" | "inventory" | "retailers";
+  activePage: "dashboard" | "inventory" | "retailers" | "reviews";
   userName?: string;
   headerActions?: ReactNode;
 }
@@ -148,6 +149,12 @@ export default function WholesalerLayout({ children, title, activePage, userName
       icon: Users,
       action: () => navigate("/view-retailers"),
       active: activePage === "retailers",
+    },
+    {
+      title: "Product Reviews",
+      icon: Star,
+      action: () => navigate("/wholesaler/reviews"),
+      active: activePage === "reviews",
     },
   ];
 

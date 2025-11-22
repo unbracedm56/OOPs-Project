@@ -22,6 +22,7 @@ interface AmazonHeaderProps {
   cartCount?: number;
   wishlistCount?: number;
   userName?: string;
+  avatarUrl?: string;
   onSignOut?: () => void;
   showLocationSelector?: boolean;
   userRole?: string;
@@ -31,6 +32,7 @@ export const AmazonHeader = ({
   cartCount = 0,
   wishlistCount = 0,
   userName,
+  avatarUrl,
   onSignOut,
   showLocationSelector = true,
   userRole,
@@ -715,9 +717,17 @@ export const AmazonHeader = ({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                    <User className="h-4 w-4 text-white" />
-                  </div>
+                  {avatarUrl ? (
+                    <img 
+                      src={avatarUrl} 
+                      alt={userName || "User"} 
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                      <User className="h-4 w-4 text-white" />
+                    </div>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">

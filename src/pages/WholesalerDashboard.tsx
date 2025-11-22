@@ -207,11 +207,14 @@ export default function WholesalerDashboard() {
         ? ((currentMonthOrders.length - lastMonthOrders.length) / lastMonthOrders.length) * 100 
         : 0;
 
-      // Get unique retailers count
-      const { count: retailersCount } = await supabase
+      // Get unique retailers count - fetch all orders and count unique customer_ids
+      const { data: allStoreOrders } = await supabase
         .from("orders")
-        .select("customer_id", { count: 'exact', head: true })
+        .select("customer_id")
         .eq("store_id", storeId);
+
+      const uniqueRetailers = new Set(allStoreOrders?.map(order => order.customer_id) || []);
+      const retailersCount = uniqueRetailers.size;
 
       // Today's stats
       const today = new Date();
@@ -224,12 +227,33 @@ export default function WholesalerDashboard() {
       const todayRevenue = todayOrders.reduce((sum, order) => sum + Number(order.total), 0);
       const pendingOrders = allOrders?.filter(order => order.status === 'pending').length || 0;
       const processingOrders = allOrders?.filter(order => order.status === 'processing').length || 0;
+      
+      // Get new retailers today - customers who placed their first order today
+      const todayCustomerIds = new Set(todayOrders.map(order => order.customer_id));
+      let newRetailersToday = 0;
+      
+      for (const customerId of todayCustomerIds) {
+        const { data: customerOrders } = await supabase
+          .from("orders")
+          .select("created_at")
+          .eq("store_id", storeId)
+          .eq("customer_id", customerId)
+          .order("created_at", { ascending: true })
+          .limit(1);
+        
+        if (customerOrders && customerOrders.length > 0) {
+          const firstOrderDate = new Date(customerOrders[0].created_at);
+          if (firstOrderDate >= today) {
+            newRetailersToday++;
+          }
+        }
+      }
 
       setStats({
         totalRevenue,
         totalOrders: currentMonthOrders.length,
         totalProducts: inventory.length,
-        totalRetailers: retailersCount || 0,
+        totalRetailers: retailersCount,
         revenueGrowth,
         ordersGrowth,
       });
@@ -238,7 +262,7 @@ export default function WholesalerDashboard() {
         pendingOrders,
         todayRevenue,
         processingOrders,
-        newRetailersToday: 0, // This would need additional logic to track new retailers
+        newRetailersToday,
       });
     } catch (error) {
       console.error("Error calculating stats:", error);

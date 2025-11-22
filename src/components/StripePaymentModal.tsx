@@ -5,9 +5,12 @@ import { loadStripe, StripeElementsOptions } from "@stripe/stripe-js";
 import { StripePaymentForm } from "./StripePaymentForm";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, Shield, Loader2 } from "lucide-react";
+import { CreditCard, Shield, Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+// Only load Stripe if the key is configured
+const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 
 interface StripePaymentModalProps {
   open: boolean;
@@ -42,6 +45,17 @@ const StripePaymentModal = ({
   const initializePayment = async () => {
     setLoading(true);
     try {
+      // Check if Stripe is configured
+      if (!stripePromise) {
+        setLoading(false);
+        toast({
+          title: "Payment Unavailable",
+          description: "Stripe payment is not configured. Please use Cash on Delivery.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
@@ -124,7 +138,14 @@ const StripePaymentModal = ({
         </DialogHeader>
 
         <div className="py-4 overflow-y-auto flex-1 scrollbar-hide">
-          {loading ? (
+          {!stripePromise ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Stripe payment is not configured. Please contact the administrator to set up payment processing.
+              </AlertDescription>
+            </Alert>
+          ) : loading ? (
             <div className="flex flex-col items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
               <p className="text-sm text-muted-foreground">Preparing secure payment...</p>
