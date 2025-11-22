@@ -22,12 +22,26 @@ import {
   HelpCircle,
   MessageCircle,
   Lock,
-  Heart
+  Heart,
+  AlertTriangle
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AmazonHeader } from "@/components/amazon/AmazonHeader";
 import { AmazonFooter } from "@/components/amazon/AmazonFooter";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -56,6 +70,9 @@ const Profile = () => {
   const [timezone, setTimezone] = useState("IST");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [userRole, setUserRole] = useState("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     // Check for section parameter in URL
@@ -376,6 +393,55 @@ const Profile = () => {
       description: "You've been successfully signed out.",
     });
     navigate("/");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation !== "DELETE") {
+      toast({
+        title: "Error",
+        description: "Please type DELETE to confirm account deletion",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setDeletingAccount(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("No user found");
+      }
+
+      // Call the delete_user_account function
+      const { data, error } = await supabase.rpc('delete_user_account', {
+        _user_id: user.id
+      });
+
+      if (error) throw error;
+
+      // Sign out the user
+      await supabase.auth.signOut();
+
+      toast({
+        title: "Account Deleted",
+        description: "Your account and all associated data have been permanently deleted.",
+      });
+
+      // Redirect to home page
+      navigate("/");
+    } catch (error: any) {
+      console.error("Error deleting account:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete account. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteDialog(false);
+      setDeleteConfirmation("");
+    }
   };
 
   const sidebarItems = [
@@ -914,7 +980,13 @@ const Profile = () => {
                     <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                       <h3 className="font-semibold text-destructive mb-2">Delete Account</h3>
                       <p className="text-sm text-muted-foreground mb-4">Permanently delete your account and all associated data</p>
-                      <Button variant="destructive" size="sm">Delete Account</Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => setShowDeleteDialog(true)}
+                      >
+                        Delete Account
+                      </Button>
                     </div>
                   </div>
                 </Card>
@@ -1153,49 +1225,284 @@ const Profile = () => {
   // Wrap in WholesalerLayout if coming from wholesaler dashboard
   if (showWholesalerLayout) {
     return (
-      <WholesalerLayout 
-        title="Profile" 
-        activePage="dashboard"
-        userName={profile?.full_name}
-      >
-        {renderProfileContent()}
-      </WholesalerLayout>
+      <>
+        <WholesalerLayout 
+          title="Profile" 
+          activePage="dashboard"
+          userName={profile?.full_name}
+        >
+          {renderProfileContent()}
+        </WholesalerLayout>
+
+        {/* Delete Account Confirmation Dialog */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Delete Account Permanently
+              </DialogTitle>
+              <DialogDescription className="pt-4">
+                This action cannot be undone. This will permanently delete your account and remove all your data from our servers.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Warning: This will delete:</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc list-inside space-y-1 mt-2">
+                  <li>Your profile and account information</li>
+                  <li>All saved addresses</li>
+                  <li>Order history and tracking</li>
+                  <li>Shopping cart and wishlist</li>
+                  <li>Product reviews and ratings</li>
+                  <li>All notifications</li>
+                  <li>Your store and all products</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-4 pt-4">
+              <div>
+                <Label htmlFor="delete-confirmation">
+                  Type <span className="font-bold">DELETE</span> to confirm
+                </Label>
+                <Input
+                  id="delete-confirmation"
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  placeholder="Type DELETE here"
+                  className="mt-2"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteDialog(false);
+                  setDeleteConfirmation("");
+                }}
+                disabled={deletingAccount}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount || deleteConfirmation !== "DELETE"}
+              >
+                {deletingAccount ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Account
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
   // Wrap in RetailerLayout if coming from retailer dashboard
   if (showRetailerLayout) {
     return (
-      <RetailerLayout 
-        title="Profile" 
-        activePage="dashboard"
-        profile={profile}
-      >
-        {renderProfileContent()}
-      </RetailerLayout>
+      <>
+        <RetailerLayout 
+          title="Profile" 
+          activePage="dashboard"
+          profile={profile}
+        >
+          {renderProfileContent()}
+        </RetailerLayout>
+
+        {/* Delete Account Confirmation Dialog */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Delete Account Permanently
+              </DialogTitle>
+              <DialogDescription className="pt-4">
+                This action cannot be undone. This will permanently delete your account and remove all your data from our servers.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Warning: This will delete:</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc list-inside space-y-1 mt-2">
+                  <li>Your profile and account information</li>
+                  <li>All saved addresses</li>
+                  <li>Order history and tracking</li>
+                  <li>Shopping cart and wishlist</li>
+                  <li>Product reviews and ratings</li>
+                  <li>All notifications</li>
+                  <li>Your store and inventory</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-4 pt-4">
+              <div>
+                <Label htmlFor="delete-confirmation-retailer">
+                  Type <span className="font-bold">DELETE</span> to confirm
+                </Label>
+                <Input
+                  id="delete-confirmation-retailer"
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  placeholder="Type DELETE here"
+                  className="mt-2"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteDialog(false);
+                  setDeleteConfirmation("");
+                }}
+                disabled={deletingAccount}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount || deleteConfirmation !== "DELETE"}
+              >
+                {deletingAccount ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Account
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
   // Default Amazon-style layout for customers and retailers from marketplace
   return (
-    <div className="min-h-screen bg-muted/30 flex flex-col">
-      <AmazonHeader
-        cartCount={cartCount}
-        wishlistCount={wishlistCount}
-        userName={profile?.full_name?.split(" ")[0]}
-        avatarUrl={profile?.avatar_url}
-        onSignOut={handleSignOut}
-        userRole={userRole || "customer"}
-      />
+    <>
+      <div className="min-h-screen bg-muted/30 flex flex-col">
+        <AmazonHeader
+          cartCount={cartCount}
+          wishlistCount={wishlistCount}
+          userName={profile?.full_name?.split(" ")[0]}
+          avatarUrl={profile?.avatar_url}
+          onSignOut={handleSignOut}
+          userRole={userRole || "customer"}
+        />
 
-      <main className="flex-1">
-        <div className="container mx-auto px-4 py-8">
-          {renderProfileContent()}
-        </div>
-      </main>
+        <main className="flex-1">
+          <div className="container mx-auto px-4 py-8">
+            {renderProfileContent()}
+          </div>
+        </main>
 
-      <AmazonFooter />
-    </div>
+        <AmazonFooter />
+      </div>
+
+      {/* Delete Account Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Account Permanently
+            </DialogTitle>
+            <DialogDescription className="pt-4">
+              This action cannot be undone. This will permanently delete your account and remove all your data from our servers.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Warning: This will delete:</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc list-inside space-y-1 mt-2">
+                <li>Your profile and account information</li>
+                <li>All saved addresses</li>
+                <li>Order history and tracking</li>
+                <li>Shopping cart and wishlist</li>
+                <li>Product reviews and ratings</li>
+                <li>All notifications</li>
+                {userRole === "retailer" && <li>Your store and inventory</li>}
+                {userRole === "wholesaler" && <li>Your store and all products</li>}
+              </ul>
+            </AlertDescription>
+          </Alert>
+
+          <div className="space-y-4 pt-4">
+            <div>
+              <Label htmlFor="delete-confirmation">
+                Type <span className="font-bold">DELETE</span> to confirm
+              </Label>
+              <Input
+                id="delete-confirmation"
+                value={deleteConfirmation}
+                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                placeholder="Type DELETE here"
+                className="mt-2"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setDeleteConfirmation("");
+              }}
+              disabled={deletingAccount}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deletingAccount || deleteConfirmation !== "DELETE"}
+            >
+              {deletingAccount ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Account
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
