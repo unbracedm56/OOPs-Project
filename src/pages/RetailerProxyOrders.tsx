@@ -232,31 +232,41 @@ export default function RetailerProxyOrders() {
         }
 
         // Store the wholesaler order ID in proxy_orders table for tracking
+        console.log(`📝 Creating proxy_orders entries for ${items.length} items to wholesaler ${wholesalerId}`);
+        
         for (const item of items) {
-          const { error: proxyError } = await supabase
+          const proxyOrderData = {
+            retailer_store_id: store.id,
+            wholesaler_store_id: wholesalerId,
+            product_id: item.product_id,
+            inventory_id: item.inventory_id,
+            qty: item.qty || item.quantity,
+            unit_price: item.unit_price,
+            total: item.total,
+            customer_order_id: orderId,
+            wholesaler_order_id: wholesalerOrder.id, // Link to the normal order
+            status: 'approved',
+            payment_status: 'paid',
+            paid_at: new Date().toISOString(),
+            approved_at: new Date().toISOString(),
+            wholesaler_delivery_days: item.wholesaler_delivery_days || 3,
+            retailer_delivery_days: item.retailer_delivery_days || 3,
+          };
+          
+          console.log("📋 Inserting proxy_order:", proxyOrderData);
+          
+          const { data: proxyOrder, error: proxyError } = await supabase
             .from("proxy_orders")
-            .insert({
-              retailer_store_id: store.id,
-              wholesaler_store_id: wholesalerId,
-              product_id: item.product_id,
-              inventory_id: item.inventory_id,
-              qty: item.qty || item.quantity,
-              unit_price: item.unit_price,
-              total: item.total,
-              customer_order_id: orderId,
-              wholesaler_order_id: wholesalerOrder.id, // Link to the normal order
-              status: 'approved',
-              payment_status: 'paid',
-              paid_at: new Date().toISOString(),
-              approved_at: new Date().toISOString(),
-              wholesaler_delivery_days: item.wholesaler_delivery_days,
-              retailer_delivery_days: item.retailer_delivery_days,
-            });
+            .insert(proxyOrderData)
+            .select();
 
           if (proxyError) {
-            console.error("Error creating proxy order tracking:", proxyError);
+            console.error("❌ Error creating proxy order tracking:", proxyError);
+            console.error("❌ Failed data:", proxyOrderData);
             throw proxyError;
           }
+          
+          console.log("✅ Created proxy_order:", proxyOrder);
         }
       }
 

@@ -110,6 +110,7 @@ const CheckoutPage = () => {
             stock_qty,
             delivery_days,
             product_id,
+            source_order_id,
             products (
               id,
               name,
@@ -330,45 +331,74 @@ const CheckoutPage = () => {
           for (const proxyData of proxyOrderData) {
             const { item, neededQty, storeId } = proxyData;
             
-            // Strategy 1: Try to find the wholesaler from purchase history
-            const { data: purchaseHistory } = await supabase
-              .from("purchased_product_tracking")
-              .select(`
-                *,
-                source_order:source_order_id(
-                  store_id,
-                  store:stores!inner(id, name, type)
-                )
-              `)
-              .eq("retailer_store_id", storeId)
-              .eq("product_id", item.inventory.product_id)
-              .limit(1)
-              .maybeSingle();
+            console.log(`🔍 Looking for wholesaler for product: ${item.inventory.products.name}, product_id: ${item.inventory.product_id}, retailer_store_id: ${storeId}, retailer inventory_id: ${item.inventory_id}`);
             
             let wholesalerInv = null;
+            let wholesalerStoreId = null;
             
-            // If found purchase history, try that wholesaler first
-            if (purchaseHistory?.source_order?.store_id) {
-              const { data } = await supabase
-                .from("inventory")
-                .select(`
-                  *,
-                  product:products!inner(id, name),
-                  store:stores!inner(id, name, type)
-                `)
-                .eq("store_id", purchaseHistory.source_order.store_id)
-                .eq("products.name", item.inventory.products.name)
-                .eq("is_active", true)
-                .gte("stock_qty", neededQty)
-                .limit(1)
-                .maybeSingle();
+            // Strategy 1: Check where the retailer's current inventory came from
+            if (item.inventory.source_order_id) {
+              console.log(`📦 Retailer's inventory has source_order_id: ${item.inventory.source_order_id}`);
               
-              wholesalerInv = data;
+              const { data: sourceOrder, error: sourceError } = await supabase
+                .from("orders")
+                .select("id, store_id")
+                .eq("id", item.inventory.source_order_id)
+                .single();
+              
+              if (sourceError) {
+                console.error("❌ Error fetching source order:", sourceError);
+              }
+              
+              if (sourceOrder) {
+                // Get the store details separately
+                const { data: storeData } = await supabase
+                  .from("stores")
+                  .select("id, name, type")
+                  .eq("id", sourceOrder.store_id)
+                  .single();
+                
+                if (storeData && storeData.type === 'wholesaler') {
+                  console.log(`✅ Found source wholesaler from inventory: ${storeData.name} (store_id: ${sourceOrder.store_id})`);
+                  wholesalerStoreId = sourceOrder.store_id;
+                  
+                  // Check if this wholesaler still has stock
+                  const { data, error: invError } = await supabase
+                    .from("inventory")
+                    .select(`
+                      *,
+                      product:products!inner(id, name),
+                      store:stores!inner(id, name, type)
+                    `)
+                    .eq("store_id", wholesalerStoreId)
+                    .eq("product_id", item.inventory.product_id)
+                    .eq("is_active", true)
+                    .gte("stock_qty", neededQty)
+                    .limit(1)
+                    .maybeSingle();
+                  
+                  if (invError) {
+                    console.error("❌ Error fetching wholesaler inventory:", invError);
+                  }
+                  
+                  if (data) {
+                    console.log(`✅ Source wholesaler ${data.store.name} has ${data.stock_qty} units (need ${neededQty})`);
+                    wholesalerInv = data;
+                  } else {
+                    console.warn(`⚠️ Source wholesaler doesn't have enough stock, will search other wholesalers`);
+                    wholesalerStoreId = null;
+                  }
+                }
+              }
+            } else {
+              console.log("ℹ️ Retailer's inventory has no source_order_id (might be self-added product)");
             }
             
             // Strategy 2: If not found, search any wholesaler with matching product name
             if (!wholesalerInv) {
-              const { data } = await supabase
+              console.log("🔄 Using Strategy 2: Finding any available wholesaler...");
+              
+              const { data, error: strategy2Error } = await supabase
                 .from("inventory")
                 .select(`
                   *,
@@ -383,10 +413,22 @@ const CheckoutPage = () => {
                 .limit(1)
                 .maybeSingle();
               
+              if (strategy2Error) {
+                console.error("❌ Error in Strategy 2:", strategy2Error);
+              }
+              
+              if (data) {
+                console.log(`📦 Strategy 2: Found wholesaler ${data.store.name} with ${data.stock_qty} units`);
+              } else {
+                console.warn("⚠️ Strategy 2: No wholesaler found with sufficient stock");
+              }
+              
               wholesalerInv = data;
             }
             
             if (wholesalerInv) {
+              console.log(`✅ FINAL SELECTION: Using wholesaler ${wholesalerInv.store.name} (store_id: ${wholesalerInv.store.id})`);
+              
               const wholesalerDeliveryDays = wholesalerInv.delivery_days || 3;
               const retailerDeliveryDays = item.inventory.delivery_days || 3;
               
